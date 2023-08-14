@@ -123,13 +123,13 @@ class CtfTime(commands.Cog):
     async def upcoming(self, ctx, amount=None):
         # Send embeds of upcoming ctfs from ctftime.org, using their api.
         if not amount:
-            amount = '3'
+            amount = 10
         headers = {
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0',
         }
         upcoming_ep = "https://ctftime.org/api/v1/events/"
         default_image = "https://pbs.twimg.com/profile_images/2189766987/ctftime-logo-avatar_400x400.png"
-        r = requests.get(upcoming_ep, headers=headers, params=amount)
+        r = requests.get(upcoming_ep, headers=headers, params={'limit': amount})
         # print("made request")
 
         upcoming_data = r.json()
