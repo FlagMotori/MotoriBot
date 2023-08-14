@@ -64,7 +64,8 @@ async def attach_embed_info(ctx=None, embed=None):
 @bot.command()
 async def source(ctx):
     # Sends the github link of the bot.
-    await ctx.send(help_info.src)
+
+    await ctx.send(ctx.guild.id)
 
 
 @bot.event

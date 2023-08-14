@@ -97,10 +97,10 @@ def getChallenges(url, username, password):
                 # print(name)
                 # print(strip_string(name, whitelist))
                 if name not in solves:
-                    challenges.update(
+                    challenges.update_one(
                         {strip_string(name, whitelist): 'Unsolved'})
                 else:
-                    challenges.update(
+                    challenges.update_one(
                         {strip_string(name, whitelist): 'Solved'})
         else:
             raise Exception("Error making request")
@@ -122,7 +122,7 @@ class CTF(commands.Cog):
             await ctx.send(f"Current ctf commands are: {', '.join(ctf_commands)}")
 
     @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
-    @commands.has_permissions(manage_channels=True)
+    @commands.has_role('Organizer')
     @ctf.command(aliases=["new"])
     async def create(self, ctx, name):
         # Create a new channel in the CTF category (default='CTF' or configured with the configuration extension)
@@ -156,12 +156,12 @@ class CTF(commands.Cog):
         server = teamdb[str(ctx.guild.id)]
         await ctx.guild.create_role(name=ctf_name, mentionable=True)
         ctf_info = {'name': ctf_name, "text_channel": ctf_name}
-        server.update({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
+        server.update_one({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
         # Give a visual confirmation of completion.
         await ctx.message.add_reaction("✅")
 
     @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
-    @commands.has_permissions(manage_channels=True)
+    @commands.has_role('Organizer')
     @ctf.command()
     @in_ctf_channel()
     async def delete(self, ctx):
@@ -177,7 +177,7 @@ class CTF(commands.Cog):
         await ctx.send(f"`{str(ctx.message.channel)}` deleted from db")
 
     @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
-    @commands.has_permissions(manage_channels=True)
+    @commands.has_role('Organizer')
     @ctf.command(aliases=["over"])
     @in_ctf_channel()
     async def archive(self, ctx):
@@ -199,14 +199,6 @@ class CTF(commands.Cog):
             category = discord.utils.get(
                 ctx.guild.categories, name=servarchive)
         await ctx.message.channel.edit(syncpermissoins=True, category=category)
-
-    @ctf.command()
-    @in_ctf_channel()
-    async def end(self, ctx):
-        # This command is deprecated, but due to getting so many DMs from people who didn't use >help, I've decided to just have this as my solution.
-        await ctx.send("You can now use either `>ctf delete` (which will delete all data), or `>ctf archive/over` \
-which will move the channel and delete the role, but retain challenge info(`>config archive_category \
-\"archive category\"` to specify where to archive.")
 
     @commands.bot_has_permissions(manage_roles=True)
     @ctf.command()
@@ -245,13 +237,13 @@ which will move the channel and delete the role, but retain challenge info(`>con
         ctf = server.find_one({'name': str(ctx.message.channel)})
         try:  # If there are existing challenges already...
             challenges = ctf['challenges']
-            challenges.update(challenge)
+            challenges.update_one(challenge)
         except:
             challenges = challenge
         ctf_info = {'name': str(ctx.message.channel),
                     'challenges': challenges
                     }
-        server.update({'name': str(ctx.message.channel)},
+        server.update_one({'name': str(ctx.message.channel)},
                       {"$set": ctf_info}, upsert=True)
 
     @challenge.command(aliases=["a"])
@@ -276,6 +268,7 @@ which will move the channel and delete the role, but retain challenge info(`>con
 
     @challenge.command(aliases=['r', 'delete', 'd'])
     @in_ctf_channel()
+    @commands.has_role('Organizer')
     async def remove(self, ctx, name):
         # Typos can happen (remove a ctf challenge from the list)
         ctf = teamdb[str(ctx.guild.id)].find_one(
@@ -288,7 +281,7 @@ which will move the channel and delete the role, but retain challenge info(`>con
         ctf_info = {'name': str(ctx.message.channel),
                     'challenges': challenges
                     }
-        teamdb[str(ctx.guild.id)].update(
+        teamdb[str(ctx.guild.id)].update_one(
             {'name': str(ctx.message.channel)}, {"$set": ctf_info}, upsert=True)
         await ctx.send(f"Removed `{name}`")
 
@@ -308,13 +301,13 @@ which will move the channel and delete the role, but retain challenge info(`>con
                 {'name': str(ctx.message.channel)})
             try:  # If there are existing challenges already...
                 challenges = ctf['challenges']
-                challenges.update(ctfd_challs)
+                challenges.update_one(ctfd_challs)
             except:
                 challenges = ctfd_challs
             ctf_info = {'name': str(ctx.message.channel),
                         'challenges': challenges
                         }
-            teamdb[str(ctx.guild.id)].update(
+            teamdb[str(ctx.guild.id)].update_one(
                 {'name': str(ctx.message.channel)}, {"$set": ctf_info}, upsert=True)
             await ctx.message.add_reaction("✅")
         except InvalidProvider as ipm:

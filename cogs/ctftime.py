@@ -75,7 +75,7 @@ class CtfTime(commands.Cog):
         got_ctfs = []
         for ctf in info:  # If the document doesn't exist: add it, if it does: update it.
             query = ctf['name']
-            ctfs.update({'name': query}, {"$set": ctf}, upsert=True)
+            ctfs.update_one({'name': query}, {"$set": ctf}, upsert=True)
             got_ctfs.append(ctf['name'])
         print(Fore.WHITE + f"{datetime.now()}: " +
               Fore.GREEN + f"Got and updated {got_ctfs}")

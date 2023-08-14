@@ -36,7 +36,7 @@ class Configuration(commands.Cog):
         # sconf means server configuration
         sconf = serverdb[str(ctx.guild.id) + '-CONF']
         info = {"ctf_category": category_name}
-        sconf.update({"name": 'category_name'}, {"$set": info}, upsert=True)
+        sconf.update_one({"name": 'category_name'}, {"$set": info}, upsert=True)
         categoryset = sconf.find_one({'name': "category_name"})['ctf_category']
         await ctx.send(f"CTF category set as `{categoryset}`")
 
@@ -56,7 +56,7 @@ class Configuration(commands.Cog):
         # sconf means server configuration
         sconf = serverdb[str(ctx.guild.id) + '-CONF']
         info = {"archive_category": category_name}
-        sconf.update({"name": 'archive_category_name'},
+        sconf.update_one({"name": 'archive_category_name'},
                      {"$set": info}, upsert=True)
         categoryset = sconf.find_one({'name': "archive_category_name"})[
             'archive_category']
