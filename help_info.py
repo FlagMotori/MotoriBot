@@ -9,8 +9,8 @@ return info on the currently running ctfs on ctftime.org
 `>ctftime [countdown/timeleft]`
 return specific times for the time until a ctf begins, or until a currently running ctf ends.
 
-`>ctftime top [year]`
-display the leaderboards from ctftime from a certain year.
+`>ctftime top [year] [country]`
+display the CTFtime leaderboard rankings for a specified year and country.
 '''
 
 ctf_help = '''

@@ -192,6 +192,10 @@ class CtfTime(commands.Cog):
         }
         top_ep = f"https://ctftime.org/stats/{year}/"
         if country:
+            country = country.strip().upper()
+            if len(country) != 2 :
+                await ctx.send("Country code is not valid. [format: XX or XXX]")
+                return
             top_ep += country
 
         leaderboards = ""
