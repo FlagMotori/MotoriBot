@@ -40,11 +40,12 @@ class Utility(commands.Cog):
         # Get the magic bytes from a filetype
         file = open('magic.json').read()
         alldata = json.loads(file)
+        fileType = filetype.strip().lower()
         try:
-            messy_signs = str(alldata[filetype]['signs'])
+            messy_signs = str(alldata[fileType]['signs'])
             signs = messy_signs.split('[')[1].split(',')[0].split(']')[
                 0].replace("'", '')
-            filetype = alldata[filetype]['mime']
+            filetype = alldata[fileType]['mime']
             await ctx.send(f'''{filetype}: {signs}''')
         except:  # if the filetype is not in magicb.json...
             await ctx.send(f"{filetype} not found :(  If you think this filetype should be included please do `>request \"magicb {filetype}\"`")
