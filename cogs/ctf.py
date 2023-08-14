@@ -371,5 +371,5 @@ which will move the channel and delete the role, but retain challenge info(`>con
         except:
             traceback.print_exc()
 
-def setup(bot):
-    bot.add_cog(CTF(bot))
+async def setup(bot):
+    await bot.add_cog(CTF(bot))

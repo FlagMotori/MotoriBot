@@ -1,11 +1,13 @@
 import re
-import discord
-from discord.ext import tasks, commands
+import sys
 from datetime import *
-from dateutil.parser import parse # pip install python-dateutil
+
+import discord
 import requests
 from colorama import Fore, Style
-import sys
+from dateutil.parser import parse  # pip install python-dateutil
+from discord.ext import commands, tasks
+
 sys.path.append("..")
 from config_vars import *
 
@@ -162,28 +164,32 @@ class CtfTime(commands.Cog):
             await ctx.channel.send(embed=embed)
     
     @ctftime.command(aliases=["leaderboard"])
-    async def top(self, ctx, year = None):
+    async def top(self, ctx, year = None, country = None):
         # Send a message of the ctftime.org leaderboards from a supplied year (defaults to current year).
-        
-        if not year:
-            # Default to current year
-            year = str(datetime.today().year)
+
+        # Default to current year
+        year = year or str(datetime.today().year)
         headers = {
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0',
         }
-        top_ep = f"https://ctftime.org/api/v1/top/{year}/"
+        top_ep = f"https://ctftime.org/stats/{year}/"
+        if country:
+            top_ep += country
+        
         leaderboards = ""
         r = requests.get(top_ep, headers=headers)
         if r.status_code != 200:
             await ctx.send("Error retrieving data, please report this with `>report \"what happened\"`")
         else:
             try:
-                top_data = (r.json())[year]
-                for team in range(10):
-                    # Leaderboard is always top 10 so we can just assume this for ease of formatting
-                    rank = team + 1
-                    teamname = top_data[team]['team_name']
-                    score = str(round(top_data[team]['points'], 4))
+                soup = BeautifulSoup(r.text, 'html.parser')
+                
+                start = 2*bool(country)
+                for team in soup.find_all('tr')[1:11]:
+                    tds = team.find_all('td')
+                    rank = tds[start].text
+                    teamname = tds[2+start].text
+                    score = tds[4+start-bool(country)].text
 
                     if team != 9:
                         # This is literally just for formatting.  I'm sure there's a better way to do it but I couldn't think of one :(
@@ -192,10 +198,11 @@ class CtfTime(commands.Cog):
                     else:
                         leaderboards += f"\n[{rank}]   {teamname}: {score}\n"
 
-                await ctx.send(f":triangular_flag_on_post:  **{year} CTFtime Leaderboards**```ini\n{leaderboards}```")
+                await ctx.send(f":triangular_flag_on_post:  **{year}{' '+country if country else ''} CTFtime Leaderboards**```ini\n{leaderboards}```")
             except KeyError as e:
                 await ctx.send("Please supply a valid year.")
                 # LOG THIS
+    
     @ctftime.command()
     async def timeleft(self, ctx):
         # Send the specific time that ctfs that are currently running have left.
@@ -270,5 +277,5 @@ class CtfTime(commands.Cog):
                 
                 await ctx.send(f"```ini\n{self.upcoming_l[x]['name']} starts in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{self.upcoming_l[x]['url']}")
 
-def setup(bot):
-    bot.add_cog(CtfTime(bot))
+async def setup(bot):
+    await bot.add_cog(CtfTime(bot))

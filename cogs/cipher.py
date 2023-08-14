@@ -36,5 +36,5 @@ class Ciphers(commands.Cog):
         atbashed = message.translate(trans)
         await ctx.send(atbashed)
 
-def setup(bot):
-    bot.add_cog(Ciphers(bot))
+async def setup(bot):
+    await bot.add_cog(Ciphers(bot))

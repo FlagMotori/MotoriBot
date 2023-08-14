@@ -1,14 +1,17 @@
-import discord
-from discord.ext.commands import Bot
-from discord.ext import commands
+import asyncio
 import os
 import sys
 
-import help_info
-import config_vars
+import discord
+from discord.ext import commands
+from discord.ext.commands import Bot
 
-client = discord.Client()
-bot = commands.Bot(command_prefix=">", allowed_mentions = discord.AllowedMentions(everyone = False, users=False, roles=False))
+import config_vars
+import help_info
+
+bot = commands.Bot(command_prefix=">", 
+                   allowed_mentions = discord.AllowedMentions(everyone = False, users=False, roles=False),
+                   intents=discord.Intents.all() )
 # The default help command is removed so a custom one can be added.
 bot.remove_command('help')
 
@@ -53,7 +56,7 @@ async def help(ctx, page=None):
 
 
 async def attach_embed_info(ctx=None, embed=None):
-    embed.set_thumbnail(url=f'{bot.user.avatar_url}')
+    embed.set_thumbnail(url=f'{bot.user.avatar.url}')
     return embed
 
 @bot.command()
@@ -100,11 +103,18 @@ async def amicool(ctx):
         await ctx.send('lolno')
         await ctx.send('Psst, kid.  Want to be cool?  Find an issue and report it or request a feature!')
 
+async def load_extensions():
+    for filename in os.listdir("./cogs"):
+        if filename.endswith(".py"):
+            try:
+                await bot.load_extension(f"cogs.{filename[:-3]}")
+            except Exception as e:
+                print(f'Failed to load cogs : {e}')
+
+async def main():
+    async with bot:
+        await load_extensions()
+        await bot.start(config_vars.discord_token)
+
 if __name__ == '__main__':
-    sys.path.insert(1, os.getcwd() + '/cogs/')
-    for extension in extensions:
-        try:
-            bot.load_extension(extension)
-        except Exception as e:
-            print(f'Failed to load cogs : {e}')
-    bot.run(config_vars.discord_token)
+    asyncio.run(main())
