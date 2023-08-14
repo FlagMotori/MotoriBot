@@ -1,27 +1,27 @@
 import asyncio
 import os
-import sys
-
 import discord
 from discord.ext import commands
-from discord.ext.commands import Bot
-
 import config_vars
 import help_info
 
-bot = commands.Bot(command_prefix=">", 
-                   allowed_mentions = discord.AllowedMentions(everyone = False, users=False, roles=False),
-                   intents=discord.Intents.all() )
+bot = commands.Bot(command_prefix=">",
+                   allowed_mentions=discord.AllowedMentions(
+                       everyone=False, users=False, roles=False),
+                   intents=discord.Intents.all())
 # The default help command is removed so a custom one can be added.
 bot.remove_command('help')
 
 # Each extension corresponds to a file within the cogs directory.  Remove from the list to take away the functionality.
-extensions = ['ctf', 'ctftime', 'configuration', 'encoding', 'cipher', 'utility']
+extensions = ['ctf', 'ctftime', 'configuration',
+              'encoding', 'cipher', 'utility']
 # List of names reserved for those who gave cool ideas or reported something interesting.
-    # please don't spam me asking to be added.  if you send something interesting to me i will add you to the list.
+# please don't spam me asking to be added.  if you send something interesting to me i will add you to the list.
 # If your name is in the list and you use the command '>amicool' you'll get a nice message.
-cool_names = ['nullpxl', 'Yiggles', 'JohnHammond', 'voidUpdate', 'Michel Ney', 'theKidOfArcrania', 'l14ck3r0x01', 'hasu', 'KFBI', 'mrFu', 'warlock_rootx', 'd347h4ck', 'tourpan', 'careless_finch', 'fumenoid', '_wh1t3r0se_', 'The_Crazyman','0x0elliot']
+cool_names = ['nullpxl', 'Yiggles', 'JohnHammond', 'voidUpdate', 'Michel Ney', 'theKidOfArcrania', 'l14ck3r0x01', 'hasu', 'KFBI',
+              'mrFu', 'warlock_rootx', 'd347h4ck', 'tourpan', 'careless_finch', 'fumenoid', '_wh1t3r0se_', 'The_Crazyman', '0x0elliot']
 # This is intended to be circumvented; the idea being that people will change their names to people in this list just so >amicool works for them, and I think that's funny.
+
 
 @bot.event
 async def on_ready():
@@ -30,6 +30,7 @@ async def on_ready():
     print("-------------------------------")
 
     await bot.change_presence(activity=discord.Game(name=">help | >source"))
+
 
 @bot.command()
 async def help(ctx, page=None):
@@ -46,7 +47,7 @@ async def help(ctx, page=None):
     elif page == 'utility':
         emb = discord.Embed(description=help_info.utility_help, colour=4387968)
         emb.set_author(name='Utilities Help')
-    
+
     else:
         emb = discord.Embed(description=help_info.help_page, colour=4387968)
         emb.set_author(name='NullCTF Help')
@@ -59,10 +60,12 @@ async def attach_embed_info(ctx=None, embed=None):
     embed.set_thumbnail(url=f'{bot.user.avatar.url}')
     return embed
 
+
 @bot.command()
 async def source(ctx):
     # Sends the github link of the bot.
     await ctx.send(help_info.src)
+
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -78,6 +81,7 @@ async def on_command_error(ctx, error):
         print("error not caught")
         print(error)
 
+
 @bot.command()
 async def request(ctx, feature):
     # Bot sends a dm to creator with the name of the user and their request.
@@ -86,6 +90,7 @@ async def request(ctx, feature):
     await creator.send(f''':pencil: {authors_name}: {feature}''')
     await ctx.send(f''':pencil: Thanks, "{feature}" has been requested!''')
 
+
 @bot.command()
 async def report(ctx, error_report):
     # Bot sends a dm to creator with the name of the user and their report.
@@ -93,6 +98,7 @@ async def report(ctx, error_report):
     authors_name = str(ctx.author)
     await creator.send(f''':triangular_flag_on_post: {authors_name}: {error_report}''')
     await ctx.send(f''':triangular_flag_on_post: Thanks for the help, "{error_report}" has been reported!''')
+
 
 @bot.command()
 async def amicool(ctx):
@@ -103,6 +109,7 @@ async def amicool(ctx):
         await ctx.send('lolno')
         await ctx.send('Psst, kid.  Want to be cool?  Find an issue and report it or request a feature!')
 
+
 async def load_extensions():
     for filename in os.listdir("./cogs"):
         if filename.endswith(".py"):
@@ -110,6 +117,7 @@ async def load_extensions():
                 await bot.load_extension(f"cogs.{filename[:-3]}")
             except Exception as e:
                 print(f'Failed to load cogs : {e}')
+
 
 async def main():
     async with bot:
