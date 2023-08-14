@@ -6,7 +6,7 @@ WORKDIR /usr/src/app
 RUN apk add gcc python3-dev musl-dev
 
 COPY nullctf.py .
-COPY cogs .
+COPY cogs ./cogs
 COPY help_info.py .
 COPY magic.json .
 COPY config_vars.py .
