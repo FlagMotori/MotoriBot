@@ -1,6 +1,6 @@
 ctftime_help = '''
 
-`>ctftime upcoming [default: 10]`
+`>ctftime upcoming [default: 3]`
 return info on a number of upcoming ctfs from ctftime.org
 
 `>ctftime current`

@@ -1,13 +1,13 @@
-from config_vars import *
 import re
 import sys
 from datetime import *
-from bs4 import BeautifulSoup
 import discord
 import requests
+from bs4 import BeautifulSoup
 from colorama import Fore, Style
 from dateutil.parser import parse  # pip install python-dateutil
 from discord.ext import commands, tasks
+from config_vars import *
 
 sys.path.append("..")
 
@@ -135,7 +135,7 @@ class CtfTime(commands.Cog):
     async def upcoming(self, ctx, amount=None):
         # Send embeds of upcoming ctfs from ctftime.org, using their api.
         if not amount:
-            amount = 10
+            amount = 3
         headers = {
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0',
         }
@@ -143,42 +143,44 @@ class CtfTime(commands.Cog):
         default_image = "https://pbs.twimg.com/profile_images/2189766987/ctftime-logo-avatar_400x400.png"
         r = requests.get(upcoming_ep, headers=headers,
                          params={'limit': amount})
-        # print("made request")
 
         upcoming_data = r.json()
-        # print("HERE")
 
         for ctf in range(0, int(amount)):
             ctf_title = upcoming_data[ctf]["title"]
-            (ctf_start, ctf_end) = (upcoming_data[ctf]["start"].replace("T", " ").split(
-                "+", 1)[0] + " UTC", upcoming_data[ctf]["finish"].replace("T", " ").split("+", 1)[0] + " UTC")
-            (ctf_start, ctf_end) = (
-                re.sub(":00 ", " ", ctf_start), re.sub(":00 ", " ", ctf_end))
-            dur_dict = upcoming_data[ctf]["duration"]
-            (ctf_hours, ctf_days) = (
-                str(dur_dict["hours"]), str(dur_dict["days"]))
             ctf_link = upcoming_data[ctf]["url"]
-            ctf_image = upcoming_data[ctf]["logo"]
-            ctf_format = upcoming_data[ctf]["format"]
-            ctf_place = upcoming_data[ctf]["onsite"]
-            if not ctf_place:
-                ctf_place = "Online"
-            else:
-                ctf_place = "Onsite"
+            ctftime_url = upcoming_data[ctf]["ctftime_url"]
+            embed = discord.Embed(title=ctf_title, 
+                                url=ctftime_url, 
+                                description=ctf_link, 
+                                color=int("f23a55", 16),
+                                timestamp=datetime.now())
 
-            embed = discord.Embed(
-                title=ctf_title, description=ctf_link, color=int("f23a55", 16))
-            if ctf_image != '':
+            teamID = upcoming_data[ctf]["organizers"][0]['id']
+            teamName = upcoming_data[ctf]["organizers"][0]['name']
+            teamLogo = requests.get(f"https://ctftime.org/api/v1/teams/{teamID}/", headers=headers).json()['logo']
+            embed.set_author(name=teamName, url=f"https://ctftime.org/team/{teamID}", icon_url=teamLogo)
+
+            ctf_image = upcoming_data[ctf]["logo"]
+            if ctf_image:
                 embed.set_thumbnail(url=ctf_image)
             else:
                 embed.set_thumbnail(url=default_image)
 
-            embed.add_field(name="Duration", value=(
-                (ctf_days + " days, ") + ctf_hours) + " hours", inline=True)
-            embed.add_field(name="Format", value=(
-                ctf_place + " ") + ctf_format, inline=True)
-            embed.add_field(name="Timeframe", value=(
-                ctf_start + " -> ") + ctf_end, inline=True)
+            ts = int(datetime.strptime(upcoming_data[ctf]["start"], '%Y-%m-%dT%X%z').timestamp())
+            embed.add_field(name="Start", value=f"<t:{ts}:F> <t:{ts}:R>", inline=False)
+
+            ctf_place = "Onsite" if upcoming_data[ctf]["onsite"] else "Online"
+            ctf_format = upcoming_data[ctf]["format"]
+            embed.add_field(name="Format", value=f"{ctf_place} {ctf_format}" , inline=True)
+
+            ctf_days = upcoming_data[ctf]["duration"]["days"]
+            ctf_hours = upcoming_data[ctf]["duration"]["hours"]
+            embed.add_field(name="Duration", value=f"{ctf_days} days, {ctf_hours} hours", inline=True)
+
+            embed.add_field(name="Weight", value=f"{upcoming_data[ctf]['weight']}" , inline=True)
+
+            embed.set_footer(text=f"Information requested by: {ctx.author.display_name}")
             await ctx.channel.send(embed=embed)
 
     @ctftime.command(aliases=["leaderboard"])
