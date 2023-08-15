@@ -1,6 +1,7 @@
 from config_vars import *
 import discord
 from discord.ext import commands
+from prettytable import PrettyTable
 import string
 import requests
 import sys
@@ -244,7 +245,7 @@ class CTF(commands.Cog):
         ctf_info = {'name': str(ctx.message.channel),
                     'challenges': challenges}
         server.update_one({'name': str(ctx.message.channel)},
-                            {"$set": ctf_info}, upsert=True)
+                          {"$set": ctf_info}, upsert=True)
         await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}`")
 
     @staticmethod
@@ -282,12 +283,20 @@ class CTF(commands.Cog):
     @challenge.command(aliases=['s', 'solve'])
     @in_ctf_channel()
     async def solved(self, ctx, name):
+        role = discord.utils.get(
+            ctx.guild.roles, name=str(ctx.message.channel))
+        user = ctx.message.author
+        await user.add_roles(role)
         working = CTF.updateChallenge(ctx, name, 'Solved')
         await ctx.send(f":triangular_flag_on_post: `{name}` has been solved by `{', '.join(working)}`")
 
     @challenge.command(aliases=['w'])
     @in_ctf_channel()
     async def working(self, ctx, name):
+        role = discord.utils.get(
+            ctx.guild.roles, name=str(ctx.message.channel))
+        user = ctx.message.author
+        await user.add_roles(role)
         working = CTF.updateChallenge(ctx, name, 'Working')
         await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{name}`!")
 
@@ -309,6 +318,33 @@ class CTF(commands.Cog):
         teamdb[str(ctx.guild.id)].update_one(
             {'name': str(ctx.message.channel)}, {"$set": ctf_info}, upsert=True)
         await ctx.send(f"Removed `{name}`")
+
+    @challenge.command(aliases=['stat'])
+    @in_ctf_channel()
+    @commands.has_role('Organizer')
+    async def stats(self, ctx, name):
+        # Typos can happen (remove a ctf challenge from the list)
+        myTable = PrettyTable(['player', 'working', 'solved'])
+
+        ctf = teamdb[str(ctx.guild.id)].find_one(
+            {'name': str(ctx.message.channel)})
+        challenges = ctf['challenges']
+
+        player_stats = {}
+        for _, chal in challenges.items():
+            for player in chal['working']:
+                if player not in player_stats:
+                    player_stats[player] = [0, 0]
+                if chal['status'] == 'Working':
+                    player_stats[player][0] += 1
+                elif chal['status'] == 'Solved':
+                    player_stats[player][1] += 1
+
+        for player in player_stats:
+            myTable.add_row([player, player_stats[player]
+                            [0], player_stats[player][1]])
+
+        await ctx.send(f"```{myTable}```")
 
     @challenge.command(aliases=['get', 'ctfd'])
     @in_ctf_channel()
