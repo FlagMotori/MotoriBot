@@ -5,10 +5,14 @@ from discord.ext import commands
 import config_vars
 import help_info
 
-bot = commands.Bot(command_prefix="./",
+command_prefix = "./"  # unix like :)
+bot = commands.Bot(command_prefix=command_prefix,
                    allowed_mentions=discord.AllowedMentions(
                        everyone=False, users=False, roles=False),
                    intents=discord.Intents.all())
+
+help_info.set_prefix(command_prefix)
+
 # The default help command is removed so a custom one can be added.
 bot.remove_command('help')
 

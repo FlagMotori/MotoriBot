@@ -108,3 +108,21 @@ report an issue, or request a feature for NullCTF, if it is helpful your name wi
 
 
 src = "https://github.com/NullPxl/NullCTF"
+
+
+def __set_prefix(help, prefix):
+    res = []
+    for line in help.splitlines():
+        if line.startswith("`>"):
+            line = f"`{prefix}{line[2:]}"
+        res.append(line)
+    return '\n'.join(res)
+
+
+def set_prefix(prefix):
+    global ctftime_help, ctf_help, config_help, utility_help, help_page
+    ctftime_help = __set_prefix(ctftime_help, prefix)
+    ctf_help = __set_prefix(ctf_help, prefix)
+    config_help = __set_prefix(config_help, prefix)
+    utility_help = __set_prefix(utility_help, prefix)
+    help_page = __set_prefix(help_page, prefix)
