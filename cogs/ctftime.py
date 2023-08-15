@@ -96,7 +96,7 @@ class CtfTime(commands.Cog):
             # If the subcommand passed does not exist, its type is None
             ctftime_commands = list(
                 set([c.qualified_name for c in CtfTime.walk_commands(self)][1:]))
-            await ctx.send(f"Current ctftime commands are: {', '.join(ctftime_commands)}")
+            await ctx.reply(f"Current ctftime commands are: {', '.join(ctftime_commands)}")
 
     @ctftime.command(aliases=['now', 'running'])
     async def current(self, ctx):
@@ -129,7 +129,7 @@ class CtfTime(commands.Cog):
                 await ctx.channel.send(embed=embed)
 
         if running is False:  # No ctfs were found to be running
-            await ctx.send("No CTFs currently running! Check out >ctftime countdown, and >ctftime upcoming to see when ctfs will start!")
+            await ctx.reply("No CTFs currently running! Check out >ctftime countdown, and >ctftime upcoming to see when ctfs will start!")
 
     @ctftime.command(aliases=["next"])
     async def upcoming(self, ctx, amount=None):
@@ -196,14 +196,14 @@ class CtfTime(commands.Cog):
         if country:
             country = country.strip().upper()
             if len(country) != 2 :
-                await ctx.send("Country code is not valid. [format: XX or XXX]")
+                await ctx.reply("Country code is not valid. [format: XX or XXX]")
                 return
             top_ep += country
 
         leaderboards = ""
         r = requests.get(top_ep, headers=headers)
         if r.status_code != 200:
-            await ctx.send("Error retrieving data, please report this with `>report \"what happened\"`")
+            await ctx.reply("Error retrieving data, please report this with `>report \"what happened\"`")
         else:
             try:
                 soup = BeautifulSoup(r.text, 'html.parser')
@@ -222,9 +222,9 @@ class CtfTime(commands.Cog):
                     else:
                         leaderboards += f"\n[{rank}]   {teamname}: {score}\n"
 
-                await ctx.send(f":triangular_flag_on_post:  **{year}{' '+country if country else ''} CTFtime Leaderboards**```ini\n{leaderboards}```")
+                await ctx.reply(f":triangular_flag_on_post:  **{year}{' '+country if country else ''} CTFtime Leaderboards**```ini\n{leaderboards}```")
             except KeyError:
-                await ctx.send("Please supply a valid year.")
+                await ctx.reply("Please supply a valid year.")
                 # LOG THIS
 
     @ctftime.command()
@@ -244,10 +244,10 @@ class CtfTime(commands.Cog):
                 minutes = time // 60
                 time %= 60
                 seconds = time
-                await ctx.send(f"```ini\n{ctf['name']} ends in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{ctf['url']}")
+                await ctx.reply(f"```ini\n{ctf['name']} ends in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{ctf['url']}")
 
         if not running:
-            await ctx.send('No ctfs are running! Use >ctftime upcoming or >ctftime countdown to see upcoming ctfs')
+            await ctx.reply('No ctfs are running! Use >ctftime upcoming or >ctftime countdown to see upcoming ctfs')
 
     @ctftime.command()
     async def countdown(self, ctx, params=None):
@@ -265,7 +265,7 @@ class CtfTime(commands.Cog):
             for i, c in enumerate(self.upcoming_l):
                 index += f"\n[{i + 1}] {c['name']}\n"
 
-            await ctx.send(f"Type >ctftime countdown <number> to select.\n```ini\n{index}```")
+            await ctx.reply(f"Type >ctftime countdown <number> to select.\n```ini\n{index}```")
         else:
             if self.upcoming_l != []:
                 x = int(params) - 1
@@ -278,7 +278,7 @@ class CtfTime(commands.Cog):
                 time %= 60
                 seconds = time
 
-                await ctx.send(f"```ini\n{self.upcoming_l[x]['name']} starts in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{self.upcoming_l[x]['url']}")
+                await ctx.reply(f"```ini\n{self.upcoming_l[x]['name']} starts in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{self.upcoming_l[x]['url']}")
             else:  # TODO: make this a function, too much repeated code here.
                 for ctf in ctfs.find():
                     if ctf['start'] > unix_now:
@@ -293,7 +293,7 @@ class CtfTime(commands.Cog):
                 time %= 60
                 seconds = time
 
-                await ctx.send(f"```ini\n{self.upcoming_l[x]['name']} starts in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{self.upcoming_l[x]['url']}")
+                await ctx.reply(f"```ini\n{self.upcoming_l[x]['name']} starts in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{self.upcoming_l[x]['url']}")
 
 
 async def setup(bot):

@@ -51,13 +51,12 @@ async def help(ctx, page=None):
     elif page == 'utility':
         emb = discord.Embed(description=help_info.utility_help, colour=4387968)
         emb.set_author(name='Utilities Help')
-
     else:
         emb = discord.Embed(description=help_info.help_page, colour=4387968)
-        emb.set_author(name='NullCTF Help')
+        emb.set_author(name='Help')
 
     await attach_embed_info(ctx, emb)
-    await ctx.channel.send(embed=emb)
+    await ctx.reply(embed=emb)
 
 
 async def attach_embed_info(ctx=None, embed=None):
@@ -77,11 +76,11 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("Missing a required argument.  Do >help")
+        await ctx.reply("Missing a required argument.  Do >help")
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You do not have the appropriate permissions to run this command.")
+        await ctx.reply("You do not have the appropriate permissions to run this command.")
     if isinstance(error, commands.BotMissingPermissions):
-        await ctx.send("I don't have sufficient permissions!")
+        await ctx.reply("I don't have sufficient permissions!")
     else:
         print("error not caught")
         print(error)
@@ -93,7 +92,7 @@ async def request(ctx, feature):
     creator = await bot.fetch_user(230827776637272064)
     authors_name = str(ctx.author)
     await creator.send(f''':pencil: {authors_name}: {feature}''')
-    await ctx.send(f''':pencil: Thanks, "{feature}" has been requested!''')
+    await ctx.reply(f''':pencil: Thanks, "{feature}" has been requested!''')
 
 
 @bot.command()
@@ -102,17 +101,16 @@ async def report(ctx, error_report):
     creator = await bot.fetch_user(230827776637272064)
     authors_name = str(ctx.author)
     await creator.send(f''':triangular_flag_on_post: {authors_name}: {error_report}''')
-    await ctx.send(f''':triangular_flag_on_post: Thanks for the help, "{error_report}" has been reported!''')
+    await ctx.reply(f''':triangular_flag_on_post: Thanks for the help, "{error_report}" has been reported!''')
 
 
 @bot.command()
 async def amicool(ctx):
     authors_name = str(ctx.author).split("#")[0]
     if authors_name in cool_names:
-        await ctx.send('You are very cool :]')
+        await ctx.reply('You are very cool :]')
     else:
-        await ctx.send('lolno')
-        await ctx.send('Psst, kid.  Want to be cool?  Find an issue and report it or request a feature!')
+        await ctx.reply('lolno\nPsst, kid.  Want to be cool?  Find an issue and report it or request a feature!')
 
 
 async def load_extensions():
