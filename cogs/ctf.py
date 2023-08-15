@@ -235,15 +235,17 @@ class CTF(commands.Cog):
             challenges = ctf['challenges']
             if challenges.get(chall_name):
                 await ctx.send(f"A challenge with that name already exists in this channel.")
+                return
+            challenges[chall_name] = {
+                'status': 'Unsolved', 'working': []}
         except:
             challenges = {chall_name: {
                 'status': 'Unsolved', 'working': []}}
-            ctf_info = {'name': str(ctx.message.channel),
-                        'challenges': challenges
-                        }
-            server.update_one({'name': str(ctx.message.channel)},
-                              {"$set": ctf_info}, upsert=True)
-            await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}`")
+        ctf_info = {'name': str(ctx.message.channel),
+                    'challenges': challenges}
+        server.update_one({'name': str(ctx.message.channel)},
+                            {"$set": ctf_info}, upsert=True)
+        await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}`")
 
     @staticmethod
     def updateChallenge(ctx, name, status):
@@ -258,18 +260,18 @@ class CTF(commands.Cog):
             # If challenge already exist...
             if (chall := challenges.get(chall_name)):
                 working = chall['working']
-                if ctx.message.author not in working:
-                    working.append(ctx.message.author)
+                if ctx.message.author.name not in working:
+                    working.append(ctx.message.author.name)
                 challenges[chall_name] = {
                     'status': status, 'working': working}
             else:
                 challenges[chall_name] = {
-                    'status': status, 'working': [ctx.message.author]}
+                    'status': status, 'working': [ctx.message.author.name]}
         except:
             challenges = {chall_name: {
-                'status': status, 'working': [ctx.message.author]}}
+                'status': status, 'working': [ctx.message.author.name]}}
         finally:
-            working = challenges['working']
+            working = challenges[chall_name]['working']
         ctf_info = {'name': str(ctx.message.channel),
                     'challenges': challenges
                     }
@@ -287,7 +289,7 @@ class CTF(commands.Cog):
     @in_ctf_channel()
     async def working(self, ctx, name):
         working = CTF.updateChallenge(ctx, name, 'Working')
-        await ctx.send(f"`{', '.join(working)}` is working on `{name}`!")
+        await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{name}`!")
 
     @challenge.command(aliases=['r', 'delete', 'd'])
     @in_ctf_channel()
