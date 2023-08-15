@@ -12,28 +12,26 @@ class Utility(commands.Cog):
 
     @commands.command(aliases=['char'])
     async def characters(self, ctx, string):
-        await ctx.send(len(string))
+        await ctx.reply(len(string))
 
     @commands.command(aliases=['wc'])
     async def wordcount(self, ctx, *args):
-        await ctx.send(len(args))
+        await ctx.reply(len(args))
 
     @commands.command(aliases=['rev'])
     async def reverse(self, ctx, message):
-        await ctx.send(message[::(- 1)])
+        await ctx.reply(message[::-1])
 
     @commands.command()
     async def counteach(self, ctx, message):
         # Count the amount of characters in a string.
         count = {}
-
         for char in message:
-            if char in count.keys():
+            if char in count:
                 count[char] += 1
             else:
                 count[char] = 1
-
-        await ctx.send(str(count))
+        await ctx.reply(f"```{json.dumps(count, indent=4)}```")
 
     @commands.command(aliases=['head'])
     async def magicb(self, ctx, filetype):
@@ -46,25 +44,19 @@ class Utility(commands.Cog):
             signs = '\n'.join(map(lambda s: f"- `{s}`", alldata[fileType]['signs']))
             await ctx.reply(f"{mime}:\n{signs}", mention_author=True)
         except:  # if the filetype is not in magicb.json...
-            await ctx.send(f"{filetype} not found :(  If you think this filetype should be included please do `>request \"magicb {filetype}\"`")
+            await ctx.reply(f"{filetype} not found :(  If you think this filetype should be included please do `>request \"magicb {filetype}\"`")
 
     @commands.command()
     async def twitter(self, ctx, twituser):
-        await ctx.send('https://twitter.com/' + twituser)
+        await ctx.reply(f"https://twitter.com/{twituser}")
 
     @commands.command()
     async def github(self, ctx, gituser):
-        await ctx.send('https://github.com/' + gituser)
+        await ctx.reply(f"https://github.com/{gituser}")
 
     @commands.command(aliases=['5050', 'flip'])
     async def cointoss(self, ctx):
-        choice = random.randint(1, 2)
-
-        if choice == 1:
-            await ctx.send('heads')
-
-        if choice == 2:
-            await ctx.send('tails')
+        await ctx.reply('heads' if random.randint(0, 1) else 'tails')
 
 
 async def setup(bot):
