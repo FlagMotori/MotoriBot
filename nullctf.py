@@ -5,7 +5,7 @@ from discord.ext import commands
 import config_vars
 import help_info
 
-bot = commands.Bot(command_prefix=">",
+bot = commands.Bot(command_prefix="./",
                    allowed_mentions=discord.AllowedMentions(
                        everyone=False, users=False, roles=False),
                    intents=discord.Intents.all())
