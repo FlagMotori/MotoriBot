@@ -130,7 +130,7 @@ class CTF(commands.Cog):
             sconf = serverdb[str(ctx.guild.id) + '-CONF']
             servcat = sconf.find_one({'name': "category_name"})['ctf_category']
         except:
-            servcat = "CTF"
+            servcat = "Active CTF"
 
         category = discord.utils.get(ctx.guild.categories, name=servcat)
         if category is None:  # Checks if category exists, if it doesn't it will create it.
@@ -142,15 +142,10 @@ class CTF(commands.Cog):
         if ctf_name[0] == '-':
             # edge case where channel names can't start with a space (but can end in one)
             ctf_name = ctf_name[1:]
+
         # There cannot be 2 spaces (which are converted to '-') in a row when creating a channel.  This makes sure these are taken out.
-        new_ctf_name = ctf_name
-        prev = ''
         while '--' in ctf_name:
-            for i, c in enumerate(ctf_name):
-                if c == prev and c == '-':
-                    new_ctf_name = ctf_name[:i] + ctf_name[i+1:]
-                prev = c
-            ctf_name = new_ctf_name
+            ctf_name = ctf_name.replace('--', '-')
 
         await ctx.guild.create_text_channel(name=ctf_name, category=category)
         server = teamdb[str(ctx.guild.id)]
@@ -227,44 +222,72 @@ class CTF(commands.Cog):
     async def challenge(self, ctx):
         pass
 
-    @staticmethod
-    def updateChallenge(ctx, name, status):
+    @challenge.command(aliases=["a"])
+    @in_ctf_channel()
+    async def add(self, ctx, name):
         # Update the db with a new challenge and its status
-        server = teamdb[str(ctx.guild.id)]
         whitelist = set(string.ascii_letters+string.digits+' ' +
                         '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
-        challenge = {strip_string(str(name), whitelist): status}
+        chall_name = strip_string(str(name), whitelist)
+        server = teamdb[str(ctx.guild.id)]
         ctf = server.find_one({'name': str(ctx.message.channel)})
         try:  # If there are existing challenges already...
             challenges = ctf['challenges']
-            challenges.update_one(challenge)
+            if challenges.get(chall_name):
+                await ctx.send(f"A challenge with that name already exists in this channel.")
         except:
-            challenges = challenge
+            challenges = {chall_name: {
+                'status': 'Unsolved', 'working': []}}
+            ctf_info = {'name': str(ctx.message.channel),
+                        'challenges': challenges
+                        }
+            server.update_one({'name': str(ctx.message.channel)},
+                              {"$set": ctf_info}, upsert=True)
+            await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}`")
+
+    @staticmethod
+    def updateChallenge(ctx, name, status):
+        # Update the db with a new challenge and its status
+        whitelist = set(string.ascii_letters+string.digits+' ' +
+                        '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
+        chall_name = strip_string(str(name), whitelist)
+        server = teamdb[str(ctx.guild.id)]
+        ctf = server.find_one({'name': str(ctx.message.channel)})
+        try:  # If there are existing challenges already...
+            challenges = ctf['challenges']
+            # If challenge already exist...
+            if (chall := challenges.get(chall_name)):
+                working = chall['working']
+                if ctx.message.author not in working:
+                    working.append(ctx.message.author)
+                challenges[chall_name] = {
+                    'status': status, 'working': working}
+            else:
+                challenges[chall_name] = {
+                    'status': status, 'working': [ctx.message.author]}
+        except:
+            challenges = {chall_name: {
+                'status': status, 'working': [ctx.message.author]}}
+        finally:
+            working = challenges['working']
         ctf_info = {'name': str(ctx.message.channel),
                     'challenges': challenges
                     }
         server.update_one({'name': str(ctx.message.channel)},
-                      {"$set": ctf_info}, upsert=True)
-
-    @challenge.command(aliases=["a"])
-    @in_ctf_channel()
-    async def add(self, ctx, name):
-        CTF.updateChallenge(ctx, name, 'Unsolved')
-        await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}`")
+                          {"$set": ctf_info}, upsert=True)
+        return working
 
     @challenge.command(aliases=['s', 'solve'])
     @in_ctf_channel()
     async def solved(self, ctx, name):
-        solve = f"Solved - {str(ctx.message.author)}"
-        CTF.updateChallenge(ctx, name, solve)
-        await ctx.send(f":triangular_flag_on_post: `{name}` has been solved by `{str(ctx.message.author)}`")
+        working = CTF.updateChallenge(ctx, name, 'Solved')
+        await ctx.send(f":triangular_flag_on_post: `{name}` has been solved by `{', '.join(working)}`")
 
     @challenge.command(aliases=['w'])
     @in_ctf_channel()
     async def working(self, ctx, name):
-        work = f"Working - {str(ctx.message.author)}"
-        CTF.updateChallenge(ctx, name, work)
-        await ctx.send(f"`{str(ctx.message.author)}` is working on `{name}`!")
+        working = CTF.updateChallenge(ctx, name, 'Working')
+        await ctx.send(f"`{', '.join(working)}` is working on `{name}`!")
 
     @challenge.command(aliases=['r', 'delete', 'd'])
     @in_ctf_channel()
