@@ -148,9 +148,13 @@ class CTF(commands.Cog):
         while '--' in ctf_name:
             ctf_name = ctf_name.replace('--', '-')
 
-        await ctx.guild.create_text_channel(name=ctf_name, category=category)
+        role = await ctx.guild.create_role(name=ctf_name, mentionable=True)
+        channel = await ctx.guild.create_text_channel(name=ctf_name, category=category)
+        # Override default permissions
+        await channel.set_permissions(ctx.guild.default_role, read_messages=False)
+        # Allow access for specified role
+        await channel.set_permissions(role, read_messages=True)
         server = teamdb[str(ctx.guild.id)]
-        await ctx.guild.create_role(name=ctf_name, mentionable=True)
         ctf_info = {'name': ctf_name, "text_channel": ctf_name}
         server.update_one({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
         # Give a visual confirmation of completion.
@@ -198,11 +202,10 @@ class CTF(commands.Cog):
 
     @commands.bot_has_permissions(manage_roles=True)
     @ctf.command()
-    @in_ctf_channel()
-    async def join(self, ctx):
+    async def join(self, ctx, name):
         # Give the user the role of whatever ctf channel they're currently in.
         role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel))
+            ctx.guild.roles, name=name)
         user = ctx.message.author
         await user.add_roles(role)
         await ctx.send(f"{user} has joined the {str(ctx.message.channel)} team!")
