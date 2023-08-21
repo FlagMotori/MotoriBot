@@ -170,6 +170,9 @@ class CtfTime(commands.Cog):
             ts = int(datetime.strptime(upcoming_data[ctf]["start"], '%Y-%m-%dT%X%z').timestamp())
             embed.add_field(name="Start", value=f"<t:{ts}:F> <t:{ts}:R>", inline=False)
 
+            ts = int(datetime.strptime(upcoming_data[ctf]["finish"], '%Y-%m-%dT%X%z').timestamp())
+            embed.add_field(name="Finish", value=f"<t:{ts}:F> <t:{ts}:R>", inline=False)
+
             ctf_place = "Onsite" if upcoming_data[ctf]["onsite"] else "Online"
             ctf_format = upcoming_data[ctf]["format"]
             embed.add_field(name="Format", value=f"{ctf_place} {ctf_format}" , inline=True)
