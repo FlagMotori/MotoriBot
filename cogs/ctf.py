@@ -16,7 +16,7 @@ sys.path.append("..")
 def in_ctf_channel():
     async def tocheck(ctx):
         # A check for ctf context specific commands
-        if teamdb[str(ctx.guild.id)].find_one({'name': str(ctx.message.channel)}):
+        if teamdb[str(ctx.guild.id)].find_one({'name': str(ctx.message.channel.category)}):
             return True
         else:
             await ctx.send("You must be in a created ctf channel to use ctf commands!")
@@ -126,20 +126,13 @@ class CTF(commands.Cog):
     @commands.has_role('Organizer')
     @ctf.command(aliases=["new"])
     async def create(self, ctx, name):
-        # Create a new channel in the CTF category (default='CTF' or configured with the configuration extension)
-        try:
-            sconf = serverdb[str(ctx.guild.id) + '-CONF']
-            servcat = sconf.find_one({'name': "category_name"})['ctf_category']
-        except:
-            servcat = "Active CTF"
-
-        category = discord.utils.get(ctx.guild.categories, name=servcat)
-        if category is None:  # Checks if category exists, if it doesn't it will create it.
-            await ctx.guild.create_category(name=servcat)
-            category = discord.utils.get(ctx.guild.categories, name=servcat)
-
         ctf_name = strip_string(name, set(
             string.ascii_letters + string.digits + ' ' + '-')).replace(' ', '-').lower()
+        category = discord.utils.get(ctx.guild.categories, name=ctf_name)
+        if category is None:  # Checks if category exists, if it doesn't it will create it.
+            await ctx.guild.create_category(name=ctf_name)
+            category = discord.utils.get(ctx.guild.categories, name=ctf_name)
+
         if ctf_name[0] == '-':
             # edge case where channel names can't start with a space (but can end in one)
             ctf_name = ctf_name[1:]
@@ -149,11 +142,15 @@ class CTF(commands.Cog):
             ctf_name = ctf_name.replace('--', '-')
 
         role = await ctx.guild.create_role(name=ctf_name, mentionable=True)
-        channel = await ctx.guild.create_text_channel(name=ctf_name, category=category)
-        # Override default permissions
-        await channel.set_permissions(ctx.guild.default_role, read_messages=False)
-        # Allow access for specified role
-        await channel.set_permissions(role, read_messages=True)
+        with open("categories.json", "r") as json_file:
+            data = json.load(json_file)
+            categories = data["categories"]
+        for c in categories:
+            channel = await ctx.guild.create_text_channel(name=c, category=category)
+            # Override default permissions
+            await channel.set_permissions(ctx.guild.default_role, read_messages=False)
+            # Allow access for specified role
+            await channel.set_permissions(role, read_messages=True)
         server = teamdb[str(ctx.guild.id)]
         ctf_info = {'name': ctf_name, "text_channel": ctf_name}
         server.update_one({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
@@ -168,42 +165,19 @@ class CTF(commands.Cog):
         # Delete role from server, delete entry from db
         try:
             role = discord.utils.get(
-                ctx.guild.roles, name=str(ctx.message.channel))
+                ctx.guild.roles, name=str(ctx.message.channel.category))
             await role.delete()
             await ctx.send(f"`{role.name}` role deleted")
         except:  # role most likely already deleted with archive
             pass
-        teamdb[str(ctx.guild.id)].remove({'name': str(ctx.message.channel)})
-        await ctx.send(f"`{str(ctx.message.channel)}` deleted from db")
-
-    @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
-    @commands.has_role('Organizer')
-    @ctf.command(aliases=["over"])
-    @in_ctf_channel()
-    async def archive(self, ctx):
-        # Delete the role, and move the ctf channel to either the default category (Archive) or whatever has been configured.
-        role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel))
-        await role.delete()
-        await ctx.send(f"`{role.name}` role deleted, archiving channel.")
-        try:
-            sconf = serverdb[str(ctx.guild.id) + '-CONF']
-            servarchive = sconf.find_one({'name': "archive_category_name"})[
-                'archive_category']
-        except:
-            servarchive = "ARCHIVE"  # default
-
-        category = discord.utils.get(ctx.guild.categories, name=servarchive)
-        if category is None:  # Checks if category exists, if it doesn't it will create it.
-            await ctx.guild.create_category(name=servarchive)
-            category = discord.utils.get(
-                ctx.guild.categories, name=servarchive)
-        await ctx.message.channel.edit(syncpermissoins=True, category=category)
+        teamdb[str(ctx.guild.id)].remove(
+            {'name': str(ctx.message.channel.category)})
+        await ctx.send(f"`{str(ctx.message.channel.category)}` deleted from db")
 
     @commands.bot_has_permissions(manage_roles=True)
     @ctf.command()
     async def join(self, ctx, name):
-        # Give the user the role of whatever ctf channel they're currently in.
+        # Give the user the role of {name} ctf.
         role = discord.utils.get(
             ctx.guild.roles, name=name)
         user = ctx.message.author
@@ -216,10 +190,10 @@ class CTF(commands.Cog):
     async def leave(self, ctx):
         # Remove from the user the role of the ctf channel they're currently in.
         role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel))
+            ctx.guild.roles, name=str(ctx.message.channel.category))
         user = ctx.message.author
         await user.remove_roles(role)
-        await ctx.send(f"{user} has left the {str(ctx.message.channel)} team.")
+        await ctx.send(f"{user} has left the {str(ctx.message.channel.category)} ctf.")
 
     @ctf.group(aliases=["chal", "chall", "challenges"])
     @in_ctf_channel()
@@ -234,7 +208,7 @@ class CTF(commands.Cog):
                         '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
         chall_name = strip_string(str(name), whitelist)
         server = teamdb[str(ctx.guild.id)]
-        ctf = server.find_one({'name': str(ctx.message.channel)})
+        ctf = server.find_one({'name': str(ctx.message.channel.category)})
         try:  # If there are existing challenges already...
             challenges = ctf['challenges']
             if challenges.get(chall_name):
@@ -245,11 +219,12 @@ class CTF(commands.Cog):
         except:
             challenges = {chall_name: {
                 'status': 'Unsolved', 'working': []}}
-        ctf_info = {'name': str(ctx.message.channel),
+        ctf_info = {'name': str(ctx.message.channel.category),
                     'challenges': challenges}
-        server.update_one({'name': str(ctx.message.channel)},
+        server.update_one({'name': str(ctx.message.channel.category)},
                           {"$set": ctf_info}, upsert=True)
-        await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}`")
+        msg = await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}, adding thread...`")
+        await msg.create_thread(name=chall_name)
 
     @staticmethod
     def updateChallenge(ctx, name, status):
@@ -258,7 +233,7 @@ class CTF(commands.Cog):
                         '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
         chall_name = strip_string(str(name), whitelist)
         server = teamdb[str(ctx.guild.id)]
-        ctf = server.find_one({'name': str(ctx.message.channel)})
+        ctf = server.find_one({'name': str(ctx.message.channel.category)})
         try:  # If there are existing challenges already...
             challenges = ctf['challenges']
             # If challenge already exist...
@@ -276,10 +251,10 @@ class CTF(commands.Cog):
                 'status': status, 'working': [ctx.message.author.name]}}
         finally:
             working = challenges[chall_name]['working']
-        ctf_info = {'name': str(ctx.message.channel),
+        ctf_info = {'name': str(ctx.message.channel.category),
                     'challenges': challenges
                     }
-        server.update_one({'name': str(ctx.message.channel)},
+        server.update_one({'name': str(ctx.message.channel.category)},
                           {"$set": ctf_info}, upsert=True)
         return working
 
@@ -287,7 +262,7 @@ class CTF(commands.Cog):
     @in_ctf_channel()
     async def solved(self, ctx, name):
         role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel))
+            ctx.guild.roles, name=str(ctx.message.channel.category))
         user = ctx.message.author
         await user.add_roles(role)
         working = CTF.updateChallenge(ctx, name, 'Solved')
@@ -297,7 +272,7 @@ class CTF(commands.Cog):
     @in_ctf_channel()
     async def working(self, ctx, name):
         role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel))
+            ctx.guild.roles, name=str(ctx.message.channel.category))
         user = ctx.message.author
         await user.add_roles(role)
         working = CTF.updateChallenge(ctx, name, 'Working')
@@ -309,17 +284,17 @@ class CTF(commands.Cog):
     async def remove(self, ctx, name):
         # Typos can happen (remove a ctf challenge from the list)
         ctf = teamdb[str(ctx.guild.id)].find_one(
-            {'name': str(ctx.message.channel)})
+            {'name': str(ctx.message.channel.category)})
         challenges = ctf['challenges']
         whitelist = set(string.ascii_letters+string.digits+' ' +
                         '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
         name = strip_string(name, whitelist)
         challenges.pop(name, None)
-        ctf_info = {'name': str(ctx.message.channel),
+        ctf_info = {'name': str(ctx.message.channel.category),
                     'challenges': challenges
                     }
         teamdb[str(ctx.guild.id)].update_one(
-            {'name': str(ctx.message.channel)}, {"$set": ctf_info}, upsert=True)
+            {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
         await ctx.send(f"Removed `{name}`")
 
     @challenge.command(aliases=['stat'])
@@ -330,7 +305,7 @@ class CTF(commands.Cog):
         myTable = PrettyTable(['player', 'working', 'solved'])
 
         ctf = teamdb[str(ctx.guild.id)].find_one(
-            {'name': str(ctx.message.channel)})
+            {'name': str(ctx.message.channel.category)})
         challenges = ctf['challenges']
 
         player_stats = {}
@@ -362,17 +337,17 @@ class CTF(commands.Cog):
                 await ctx.send(cnfm)
             ctfd_challs = getChallenges(url, user_pass[0], user_pass[1])
             ctf = teamdb[str(ctx.guild.id)].find_one(
-                {'name': str(ctx.message.channel)})
+                {'name': str(ctx.message.channel.category)})
             try:  # If there are existing challenges already...
                 challenges = ctf['challenges']
                 challenges.update_one(ctfd_challs)
             except:
                 challenges = ctfd_challs
-            ctf_info = {'name': str(ctx.message.channel),
+            ctf_info = {'name': str(ctx.message.channel.category),
                         'challenges': challenges
                         }
             teamdb[str(ctx.guild.id)].update_one(
-                {'name': str(ctx.message.channel)}, {"$set": ctf_info}, upsert=True)
+                {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
             await ctx.message.add_reaction("✅")
         except InvalidProvider as ipm:
             await ctx.send(ipm)
@@ -447,7 +422,7 @@ class CTF(commands.Cog):
         # list the challenges in the current ctf.
         ctf_challenge_list = []
         server = teamdb[str(ctx.guild.id)]
-        ctf = server.find_one({'name': str(ctx.message.channel)})
+        ctf = server.find_one({'name': str(ctx.message.channel.category)})
         try:
             ctf_challenge_list = []
             for k, v in ctf['challenges'].items():
