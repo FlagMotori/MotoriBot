@@ -33,7 +33,7 @@ async def on_ready():
     print(f"discord.py {discord.__version__}\n")
     print("-------------------------------")
 
-    await bot.change_presence(activity=discord.Game(name=">help | >source"))
+    await bot.change_presence(activity=discord.Game(name=f"{command_prefix}help | {command_prefix}source"))
 
 
 @bot.command()
@@ -67,8 +67,7 @@ async def attach_embed_info(ctx=None, embed=None):
 @bot.command()
 async def source(ctx):
     # Sends the github link of the bot.
-
-    await ctx.send(ctx.guild.id)
+    await ctx.send(help_info.src)
 
 
 @bot.event

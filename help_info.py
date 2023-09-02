@@ -107,7 +107,7 @@ report an issue, or request a feature for NullCTF, if it is helpful your name wi
 '''
 
 
-src = "https://github.com/NullPxl/NullCTF"
+src = "https://github.com/FlagMotori/MotoriBot"
 
 
 def __set_prefix(help, prefix):
