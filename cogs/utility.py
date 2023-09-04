@@ -57,6 +57,11 @@ class Utility(commands.Cog):
     @commands.command(aliases=['5050', 'flip'])
     async def cointoss(self, ctx):
         await ctx.reply('heads' if random.randint(0, 1) else 'tails')
+    
+    @commands.command(aliases=['up'])
+    async def ping(self, ctx):
+        await ctx.message.delete()
+        await ctx.send("I'm UP!", delete_after=10, ephemeral=True)
 
 
 async def setup(bot):
