@@ -6,6 +6,7 @@ import string
 import requests
 import sys
 import traceback
+import json
 sys.path.append("..")
 
 # All commands relating to server specific CTF data
@@ -48,8 +49,6 @@ class NonceNotFound(Exception):
 
 def getChallenges(url, username, password):
     # Pull challenges from a ctf hosted with the commonly used CTFd platform using provided credentials
-    whitelist = set(string.ascii_letters+string.digits+' ' +
-                    '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
     fingerprint = "Powered by CTFd"
     s = requests.session()
     if url[-1] == "/":
@@ -87,26 +86,27 @@ def getChallenges(url, username, password):
         if team_solves['success'] is True:
             for solve in team_solves['data']:
                 cat = solve['challenge']['category']
-                challname = solve['challenge']['name']
-                solves.append(f"<{cat}> {challname}")
-        challenges = {}
+                name = solve['challenge']['name']
+                solves.append(name)
         if all_challenges['success'] is True:
+            # Create a dictionary to store challenges by category
+            challenges_by_category = {}
             for chal in all_challenges['data']:
                 cat = chal['category']
-                challname = chal['name']
-                name = f"<{cat}> {challname}"
+                name = chal['name']
                 # print(name)
                 # print(strip_string(name, whitelist))
+                # Create a list for the category if it doesn't exist in the dictionary
+                if cat not in challenges_by_category:
+                    challenges_by_category[cat] = []
                 if name not in solves:
-                    challenges.update_one(
-                        {strip_string(name, whitelist): 'Unsolved'})
+                    challenges_by_category[cat].append((name, 'Unsolved'))
                 else:
-                    challenges.update_one(
-                        {strip_string(name, whitelist): 'Solved'})
+                    challenges_by_category[cat].append((name, 'Solved'))
         else:
             raise Exception("Error making request")
         # Returns all the new challenges and their corresponding statuses in a dictionary compatible with the structure that would happen with 'normal' useage.
-        return challenges
+        return challenges_by_category
 
 
 class CTF(commands.Cog):
@@ -142,7 +142,7 @@ class CTF(commands.Cog):
             ctf_name = ctf_name.replace('--', '-')
 
         role = await ctx.guild.create_role(name=ctf_name, mentionable=True)
-        with open("categories.json", "r") as json_file:
+        with open("./constants.json", "r") as json_file:
             data = json.load(json_file)
             categories = data["categories"]
         for c in categories:
@@ -152,7 +152,7 @@ class CTF(commands.Cog):
             # Allow access for specified role
             await channel.set_permissions(role, read_messages=True)
         server = teamdb[str(ctx.guild.id)]
-        ctf_info = {'name': ctf_name, "text_channel": ctf_name}
+        ctf_info = {'name': ctf_name, "category": ctf_name}
         server.update_one({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
         # Give a visual confirmation of completion.
         await ctx.message.add_reaction("✅")
@@ -196,12 +196,12 @@ class CTF(commands.Cog):
         await ctx.send(f"{user} has left the {str(ctx.message.channel.category)} ctf.")
 
     @ctf.group(aliases=["chal", "chall", "challenges"])
-    @in_ctf_channel()
+    # @in_ctf_channel()
     async def challenge(self, ctx):
         pass
 
     @challenge.command(aliases=["a"])
-    @in_ctf_channel()
+    # @in_ctf_channel()
     async def add(self, ctx, name):
         # Update the db with a new challenge and its status
         whitelist = set(string.ascii_letters+string.digits+' ' +
@@ -212,7 +212,7 @@ class CTF(commands.Cog):
         try:  # If there are existing challenges already...
             challenges = ctf['challenges']
             if challenges.get(chall_name):
-                await ctx.send(f"A challenge with that name already exists in this channel.")
+                await ctx.send("A challenge with that name already exists in this channel.")
                 return
             challenges[chall_name] = {
                 'status': 'Unsolved', 'working': []}
@@ -325,30 +325,32 @@ class CTF(commands.Cog):
         await ctx.send(f"```{myTable}```")
 
     @challenge.command(aliases=['get', 'ctfd'])
-    @in_ctf_channel()
-    async def pull(self, ctx, url):
+    # @in_ctf_channel()
+    async def pull(self, ctx, url, user, passw):
         # Pull challenges from a ctf hosted on the CTFd platform
         try:
-            try:
-                # Get the credentials from the pinned message
-                pinned = await ctx.message.channel.pins()
-                user_pass = CTF.get_creds(pinned)
-            except CredentialsNotFound as cnfm:
-                await ctx.send(cnfm)
-            ctfd_challs = getChallenges(url, user_pass[0], user_pass[1])
+            ctfd_challs = getChallenges(url, user, passw)
+            structured_data = {}
+            for category, challenges in ctfd_challs.items():
+                category_dict = {}
+                for challenge_name, status in challenges:
+                    category_dict[challenge_name] = {
+                        "status": status,
+                        "members": []
+                    }
+                structured_data[category] = category_dict
             ctf = teamdb[str(ctx.guild.id)].find_one(
                 {'name': str(ctx.message.channel.category)})
             try:  # If there are existing challenges already...
                 challenges = ctf['challenges']
-                challenges.update_one(ctfd_challs)
+                challenges.update_one(structured_data)
             except:
-                challenges = ctfd_challs
-            ctf_info = {'name': str(ctx.message.channel.category),
-                        'challenges': challenges
-                        }
-            teamdb[str(ctx.guild.id)].update_one(
-                {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
-            await ctx.message.add_reaction("✅")
+                ctf_info = {'name': str(ctx.message.channel.category),
+                            'challenges': structured_data
+                            }
+                teamdb[str(ctx.guild.id)].update_one(
+                    {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
+                await ctx.message.add_reaction("✅")
         except InvalidProvider as ipm:
             await ctx.send(ipm)
         except InvalidCredentials as icm:

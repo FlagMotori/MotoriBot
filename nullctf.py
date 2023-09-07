@@ -69,7 +69,11 @@ async def source(ctx):
     # Sends the github link of the bot.
     await ctx.send(help_info.src)
 
-
+@bot.command()
+async def sync(ctx):
+    print("sync command")
+    await bot.tree.sync()
+    await ctx.send('Command tree synced.')
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
