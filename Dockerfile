@@ -25,6 +25,7 @@ COPY --chown=${NAME}:${NAME} cogs ./cogs
 COPY --chown=${NAME}:${NAME} help_info.py .
 COPY --chown=${NAME}:${NAME} magic.json .
 COPY --chown=${NAME}:${NAME} config_vars.py .
+COPY --chown=${NAME}:${NAME} constants.json .
 COPY --chown=${NAME}:${NAME} requirements.txt .
 
 CMD ["python", "-u", "nullctf.py"]
