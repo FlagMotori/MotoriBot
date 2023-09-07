@@ -1,17 +1,30 @@
-FROM python:3.11.3-alpine
+FROM python:3.11.3-slim
 
-RUN mkdir -p /usr/src/app
-WORKDIR /usr/src/app
+ENV NAME bot
+ENV APP_HOME /home/bot
 
-RUN apk add gcc python3-dev musl-dev
+RUN groupadd -g 1000 -r ${NAME} && useradd -r -g ${NAME} -u 1000 ${NAME}
 
-COPY nullctf.py .
-COPY cogs ./cogs
-COPY help_info.py .
-COPY magic.json .
-COPY config_vars.py .
+RUN apt update && apt install -y \
+    gcc \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "nullctf.py"]
+WORKDIR ${APP_HOME}
+
+RUN chown ${NAME}:${NAME} ${APP_HOME}
+
+USER ${NAME}
+
+#COPY --chown=${NAME}:${NAME} ./* ${APP_HOME}/
+COPY --chown=${NAME}:${NAME} nullctf.py .
+COPY --chown=${NAME}:${NAME} cogs ./cogs
+COPY --chown=${NAME}:${NAME} help_info.py .
+COPY --chown=${NAME}:${NAME} magic.json .
+COPY --chown=${NAME}:${NAME} config_vars.py .
+COPY --chown=${NAME}:${NAME} requirements.txt .
+
+CMD ["python", "-u", "nullctf.py"]

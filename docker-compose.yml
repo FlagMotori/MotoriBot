@@ -1,0 +1,26 @@
+version: "2.1"
+services:
+  bot:
+    build: .
+    image: flagmotori/motoribot
+    restart: always
+    environment:
+      - "DISCORD_TOKEN=${DISCORD_TOKEN}"
+      - "MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017}"
+    depends_on:
+      - mongo
+    stop_signal: SIGKILL
+  mongo:
+    image: mongo:4.4.5
+    restart: always
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mdb:/data/db
+      - mdb_config:/data/configdb
+
+volumes:
+  mdb:
+    external: true
+  mdb_config:
+    external: true
