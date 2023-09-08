@@ -19,13 +19,19 @@ class CtfTime(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.upcoming_l = []
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0"
+        }
         self.updateDB.start()  # pylint: disable=no-member
+
 
     async def cog_command_error(self, ctx, error):
         print(error)
 
+
     def cog_unload(self):
         self.updateDB.cancel()  # pylint: disable=no-member
+
 
     @tasks.loop(minutes=30.0, reconnect=True)
     async def updateDB(self):
@@ -34,12 +40,9 @@ class CtfTime(commands.Cog):
         # I can tell by looking at the start and end date if it's currently running or not using unix timestamps.
         now = datetime.utcnow()
         unix_now = int(now.replace(tzinfo=timezone.utc).timestamp())
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0',
-        }
         upcoming = 'https://ctftime.org/api/v1/events/'
         limit = '5'  # Max amount I can grab the json data for
-        response = requests.get(upcoming, headers=headers, params=limit)
+        response = requests.get(upcoming, headers=self.headers, params=limit)
         jdata = response.json()
 
         info = []
@@ -85,9 +88,11 @@ class CtfTime(commands.Cog):
             if ctf['end'] < unix_now:
                 ctfs.remove({'name': ctf['name']})
 
+
     @updateDB.before_loop
     async def before_updateDB(self):
         await self.bot.wait_until_ready()
+
 
     @commands.group()
     async def ctftime(self, ctx):
@@ -97,6 +102,7 @@ class CtfTime(commands.Cog):
             ctftime_commands = list(
                 set([c.qualified_name for c in CtfTime.walk_commands(self)][1:]))
             await ctx.reply(f"Current ctftime commands are: {', '.join(ctftime_commands)}")
+
 
     @ctftime.command(aliases=['now', 'running'])
     async def current(self, ctx):
@@ -131,17 +137,15 @@ class CtfTime(commands.Cog):
         if running is False:  # No ctfs were found to be running
             await ctx.reply("No CTFs currently running! Check out >ctftime countdown, and >ctftime upcoming to see when ctfs will start!")
 
+
     @ctftime.command(aliases=["next"])
     async def upcoming(self, ctx, amount=None):
         # Send embeds of upcoming ctfs from ctftime.org, using their api.
         if not amount:
             amount = 3
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0',
-        }
         upcoming_ep = "https://ctftime.org/api/v1/events/"
         default_image = "https://pbs.twimg.com/profile_images/2189766987/ctftime-logo-avatar_400x400.png"
-        r = requests.get(upcoming_ep, headers=headers,
+        r = requests.get(upcoming_ep, headers=self.headers,
                          params={'limit': amount})
 
         upcoming_data = r.json()
@@ -158,7 +162,7 @@ class CtfTime(commands.Cog):
 
             teamID = upcoming_data[ctf]["organizers"][0]['id']
             teamName = upcoming_data[ctf]["organizers"][0]['name']
-            teamLogo = requests.get(f"https://ctftime.org/api/v1/teams/{teamID}/", headers=headers).json()['logo']
+            teamLogo = requests.get(f"https://ctftime.org/api/v1/teams/{teamID}/", headers=self.headers).json()['logo']
             embed.set_author(name=teamName, url=f"https://ctftime.org/team/{teamID}", icon_url=teamLogo)
 
             ctf_image = upcoming_data[ctf]["logo"]
@@ -186,15 +190,13 @@ class CtfTime(commands.Cog):
             embed.set_footer(text=f"Information requested by: {ctx.author.display_name}")
             await ctx.channel.send(embed=embed)
 
+
     @ctftime.command(aliases=["leaderboard"])
     async def top(self, ctx, year=None, country=None):
         # Send a message of the ctftime.org leaderboards from a supplied year (defaults to current year).
 
         # Default to current year
         year = year or str(datetime.today().year)
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:61.0) Gecko/20100101 Firefox/61.0',
-        }
         top_ep = f"https://ctftime.org/stats/{year}/"
         if country:
             country = country.strip().upper()
@@ -204,7 +206,7 @@ class CtfTime(commands.Cog):
             top_ep += country
 
         leaderboards = ""
-        r = requests.get(top_ep, headers=headers)
+        r = requests.get(top_ep, headers=self.headers)
         if r.status_code != 200:
             await ctx.reply("Error retrieving data, please report this with `>report \"what happened\"`")
         else:
@@ -230,6 +232,7 @@ class CtfTime(commands.Cog):
                 await ctx.reply("Please supply a valid year.")
                 # LOG THIS
 
+
     @ctftime.command()
     async def timeleft(self, ctx):
         # Send the specific time that ctfs that are currently running have left.
@@ -251,6 +254,7 @@ class CtfTime(commands.Cog):
 
         if not running:
             await ctx.reply('No ctfs are running! Use >ctftime upcoming or >ctftime countdown to see upcoming ctfs')
+
 
     @ctftime.command()
     async def countdown(self, ctx, params=None):
@@ -297,6 +301,109 @@ class CtfTime(commands.Cog):
                 seconds = time
 
                 await ctx.reply(f"```ini\n{self.upcoming_l[x]['name']} starts in: [{days} days], [{hours} hours], [{minutes} minutes], [{seconds} seconds]```\n{self.upcoming_l[x]['url']}")
+
+
+    @ctftime.command()
+    async def team(self, ctx, team=None, year=None):
+        if not team:
+            await ctx.send(f":warning: Select team.")
+            return
+
+        msg = await ctx.send(f"Looking id for team {team}...")
+        team_id = self.get_team_id(team)
+
+        if team_id <= 0 and team.isnumeric():
+            team_id = int(team)
+
+        if team_id <= 0:
+            await ctx.send(f":warning: Unknown team `{team}`.")
+            return
+
+        await msg.edit(content=f"Looking up scores for {team} with id {team_id}...")
+
+        teamName, table = self.get_scores(team_id, year)
+        team = teamName if teamName else team
+        if not table:
+            await msg.edit(content=f"Team `{team}` has not played any events.")
+            return
+        table = [
+            line[:2] + line[3:4] for line in table
+        ]  # remove CTF points column, not interesting
+
+        unscored = [
+            line for line in table if line[2] == "0.000*"
+        ]  # add unscored events to the bottom
+
+        table = [line for line in table if line[2] != "0.000*"][
+            :11
+        ]  # get top 10 (+1 header)
+        score = round(sum([float(line[2]) for line in table[1:]]), 3)
+
+        if len(unscored) > 0:
+            table.append(["", "", ""])
+            table += unscored
+
+        table.append(["", "", "", ""])
+        table.append(["TOTAL", "", "", str(score)])  # add final line with total score
+
+        table[0].insert(0, "Nr.")
+        count = 1
+        for line in table[1:-2]:  # add number column for easy counting
+            line.insert(0, f"[{str(count).zfill(2)}]" if line[0] else "")
+            if line[0]:
+                count += 1
+
+        out = f":triangular_flag_on_post:  **Top 10 events for {team}**"
+        out += "```glsl\n"
+        out += format_table(table)
+        out += "\n```"
+        await msg.edit(content=out)
+
+
+    def get_team_id(self, team_name):
+        ses = requests.Session()
+        url = "https://ctftime.org/stats/"
+        response = ses.get(url, headers=self.headers)
+        token = response.cookies['csrftoken']
+        
+        url = "https://ctftime.org/team/list/"
+        headers = {"Referer": "https://ctftime.org/stats/"}
+        headers.update(self.headers)
+        response = ses.post(
+            url,
+            data={"team_name": team_name, "csrfmiddlewaretoken": token},
+            headers=headers,
+        )
+        team_id = response.url.split("/")[-1]
+        if team_id.isnumeric():
+            return int(team_id)
+        return -1
+
+
+    def get_scores(self, team_id, year=None):
+        url = f"https://ctftime.org/team/{team_id}"
+        r = requests.get(url, headers=self.headers)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        if not year:
+            year = datetime.now().year
+        
+        div = soup.find("div", {"id": f"rating_{year}"})
+        if not div:
+            return None, None
+        
+        table = [ [ td.text.strip().replace("\t", " ") for td in tr.find_all("td")[1:]] for tr in div.find_all("tr")[1:] ]
+        table.sort(key=lambda l: float(l[3].replace("*", "")), reverse=True)
+        column_names = ["Place", "Event", "CTF Points", "Rating Points"]
+        table = [column_names] + table
+
+        teamName = soup.find("div", {"class": f"page-header"}).text.strip()
+
+        return teamName, table
+
+
+def format_table(table, seperator="      "):
+    widths = [max(len(line[i]) for line in table) for i in range(len(table[0]))]
+    return "\n".join([seperator.join([c.ljust(w) for w, c in zip(widths, line)]) for line in table])
 
 
 async def setup(bot):
