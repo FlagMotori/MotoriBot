@@ -223,9 +223,9 @@ class CtfTime(commands.Cog):
                     if team != 9:
                         # This is literally just for formatting.  I'm sure there's a better way to do it but I couldn't think of one :(
                         # If you know of a better way to do this, do a pull request or msg me and I'll add  your name to the cool list
-                        leaderboards += f"\n[{rank}]    {teamname}: {score}"
+                        leaderboards += f"\n[{rank.zfill(2)}]    {teamname}: {score}"
                     else:
-                        leaderboards += f"\n[{rank}]   {teamname}: {score}\n"
+                        leaderboards += f"\n[{rank.zfill(2)}]   {teamname}: {score}\n"
 
                 await ctx.reply(f":triangular_flag_on_post:  **{year}{' '+country if country else ''} CTFtime Leaderboards**```ini\n{leaderboards}```")
             except KeyError:
@@ -306,19 +306,22 @@ class CtfTime(commands.Cog):
     @ctftime.command()
     async def team(self, ctx, team=None, year=None):
         if not team:
-            await ctx.send(f":warning: Select team.")
+            await ctx.reply(f":warning: please select team")
             return
-
-        msg = await ctx.send(f"Looking id for team {team}...")
+        
+        msg = await ctx.reply(f"Looking id for team {team}...")
         team_id = self.get_team_id(team)
 
         if team_id <= 0 and team.isnumeric():
             team_id = int(team)
 
         if team_id <= 0:
-            await ctx.send(f":warning: Unknown team `{team}`.")
+            await msg.edit(content=f":warning: Unknown team `{team}`.")
             return
 
+        if not year:
+            year = datetime.now().year
+        
         await msg.edit(content=f"Looking up scores for {team} with id {team_id}...")
 
         teamName, table = self.get_scores(team_id, year)
@@ -353,7 +356,7 @@ class CtfTime(commands.Cog):
             if line[0]:
                 count += 1
 
-        out = f":triangular_flag_on_post:  **Top 10 events for {team}**"
+        out = f":triangular_flag_on_post:  **Top 10 events for {team} in {year}**"
         out += "```glsl\n"
         out += format_table(table)
         out += "\n```"
@@ -384,8 +387,6 @@ class CtfTime(commands.Cog):
         url = f"https://ctftime.org/team/{team_id}"
         r = requests.get(url, headers=self.headers)
         soup = BeautifulSoup(r.text, 'html.parser')
-        if not year:
-            year = datetime.now().year
         
         div = soup.find("div", {"id": f"rating_{year}"})
         if not div:
