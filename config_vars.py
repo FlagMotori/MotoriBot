@@ -1,4 +1,3 @@
-# config_vars.py
 import os
 from pymongo import MongoClient
 
@@ -22,14 +21,15 @@ def parse_int_list(variable):
         if item.isdigit()
     ]
 
+
 discord_token = parse_variable("DISCORD_TOKEN")
 mongodb_connection = parse_variable("MONGODB_URI", "mongodb://mongo:27017")
 
 client = MongoClient(mongodb_connection)
 
-ctfdb = client['ctftime'] # Create ctftime database
-ctfs = ctfdb['ctfs'] # Create ctfs collection
+ctfdb = client['ctftime']  # Create ctftime database
+ctfs = ctfdb['ctfs']  # Create ctfs collection
 
-teamdb = client['ctfteams'] # Create ctf teams database
+teamdb = client['ctfteams']  # Create ctf teams database
 
-serverdb = client['serverinfo'] # configuration db
+serverdb = client['serverinfo']  # configuration db

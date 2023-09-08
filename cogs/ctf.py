@@ -14,7 +14,7 @@ sys.path.append("..")
 # they are stored in a pinned message in the discord channel.
 
 
-def in_ctf_channel():
+def in_ctf_category():
     async def tocheck(ctx):
         # A check for ctf context specific commands
         if teamdb[str(ctx.guild.id)].find_one({'name': str(ctx.message.channel.category)}):
@@ -132,6 +132,7 @@ class CTF(commands.Cog):
         if category is None:  # Checks if category exists, if it doesn't it will create it.
             await ctx.guild.create_category(name=ctf_name)
             category = discord.utils.get(ctx.guild.categories, name=ctf_name)
+            await category.set_permissions(ctx.guild.me, read_messages=True, send_messages=True, speak=True)
 
         if ctf_name[0] == '-':
             # edge case where channel names can't start with a space (but can end in one)
@@ -142,17 +143,13 @@ class CTF(commands.Cog):
             ctf_name = ctf_name.replace('--', '-')
 
         role = await ctx.guild.create_role(name=ctf_name, mentionable=True)
-        with open("./constants.json", "r") as json_file:
-            data = json.load(json_file)
-            categories = data["categories"]
-        for c in categories:
-            channel = await ctx.guild.create_text_channel(name=c, category=category)
-            # Override default permissions
-            await channel.set_permissions(ctx.guild.default_role, read_messages=False)
-            # Allow access for specified role
-            await channel.set_permissions(role, read_messages=True)
+        channel = await ctx.guild.create_text_channel(name="Main", category=category)
+        # Override default permissions
+        await channel.set_permissions(ctx.guild.default_role, read_messages=False)
+        # Allow access for specified role
+        await channel.set_permissions(role, read_messages=True)
         server = teamdb[str(ctx.guild.id)]
-        ctf_info = {'name': ctf_name, "category": ctf_name}
+        ctf_info = {'name': ctf_name}
         server.update_one({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
         # Give a visual confirmation of completion.
         await ctx.message.add_reaction("✅")
@@ -160,7 +157,7 @@ class CTF(commands.Cog):
     @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
     @commands.has_role('Organizer')
     @ctf.command()
-    @in_ctf_channel()
+    @in_ctf_category()
     async def delete(self, ctx):
         # Delete role from server, delete entry from db
         try:
@@ -169,10 +166,31 @@ class CTF(commands.Cog):
             await role.delete()
             await ctx.send(f"`{role.name}` role deleted")
         except:  # role most likely already deleted with archive
-            pass
-        teamdb[str(ctx.guild.id)].remove(
-            {'name': str(ctx.message.channel.category)})
-        await ctx.send(f"`{str(ctx.message.channel.category)}` deleted from db")
+            await ctx.send(f"The deletion of the Discord role failed.")
+        try:
+            # Check if the category exists in the database
+            category_data = teamdb[str(ctx.guild.id)].find_one(
+                {'name': str(ctx.message.channel.category)})
+
+            if category_data:
+                # Delete the channels in the category
+                category = discord.utils.get(
+                    ctx.guild.categories, name=str(ctx.message.channel.category))
+                for channel in category.channels:
+                    await channel.delete()
+
+                # Delete the category itself
+                await category.delete()
+
+                # Remove the category from the database
+                teamdb[str(ctx.guild.id)].delete_one(
+                    {'name': str(ctx.message.channel.category)})
+
+                await ctx.send(f"`{str(ctx.message.channel.category)}` and its channels deleted.")
+            else:
+                await ctx.send(f"`{str(ctx.message.channel.category)}` not found in the database.")
+        except Exception as e:
+            print(e)
 
     @commands.bot_has_permissions(manage_roles=True)
     @ctf.command()
@@ -186,7 +204,7 @@ class CTF(commands.Cog):
 
     @commands.bot_has_permissions(manage_roles=True)
     @ctf.command()
-    @in_ctf_channel()
+    @in_ctf_category()
     async def leave(self, ctx):
         # Remove from the user the role of the ctf channel they're currently in.
         role = discord.utils.get(
@@ -196,12 +214,12 @@ class CTF(commands.Cog):
         await ctx.send(f"{user} has left the {str(ctx.message.channel.category)} ctf.")
 
     @ctf.group(aliases=["chal", "chall", "challenges"])
-    # @in_ctf_channel()
+    @in_ctf_category()
     async def challenge(self, ctx):
         pass
 
     @challenge.command(aliases=["a"])
-    # @in_ctf_channel()
+    @in_ctf_category()
     async def add(self, ctx, name):
         # Update the db with a new challenge and its status
         whitelist = set(string.ascii_letters+string.digits+' ' +
@@ -259,7 +277,7 @@ class CTF(commands.Cog):
         return working
 
     @challenge.command(aliases=['s', 'solve'])
-    @in_ctf_channel()
+    @in_ctf_category()
     async def solved(self, ctx, name):
         role = discord.utils.get(
             ctx.guild.roles, name=str(ctx.message.channel.category))
@@ -269,7 +287,7 @@ class CTF(commands.Cog):
         await ctx.send(f":triangular_flag_on_post: `{name}` has been solved by `{', '.join(working)}`")
 
     @challenge.command(aliases=['w'])
-    @in_ctf_channel()
+    @in_ctf_category()
     async def working(self, ctx, name):
         role = discord.utils.get(
             ctx.guild.roles, name=str(ctx.message.channel.category))
@@ -279,7 +297,7 @@ class CTF(commands.Cog):
         await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{name}`!")
 
     @challenge.command(aliases=['r', 'delete', 'd'])
-    @in_ctf_channel()
+    @in_ctf_category()
     @commands.has_role('Organizer')
     async def remove(self, ctx, name):
         # Typos can happen (remove a ctf challenge from the list)
@@ -298,7 +316,7 @@ class CTF(commands.Cog):
         await ctx.send(f"Removed `{name}`")
 
     @challenge.command(aliases=['stat'])
-    @in_ctf_channel()
+    @in_ctf_category()
     @commands.has_role('Organizer')
     async def stats(self, ctx, name):
         # Typos can happen (remove a ctf challenge from the list)
@@ -325,47 +343,83 @@ class CTF(commands.Cog):
         await ctx.send(f"```{myTable}```")
 
     @challenge.command(aliases=['get', 'ctfd'])
-    # @in_ctf_channel()
-    async def pull(self, ctx, url, user, passw):
+    @in_ctf_category()
+    async def pull(self, ctx, url=None, user=None, passw=None):
         # Pull challenges from a ctf hosted on the CTFd platform
-        try:
-            ctfd_challs = getChallenges(url, user, passw)
-            structured_data = {}
-            for category, challenges in ctfd_challs.items():
-                category_dict = {}
-                for challenge_name, status in challenges:
-                    category_dict[challenge_name] = {
-                        "status": status,
-                        "members": []
-                    }
-                structured_data[category] = category_dict
-            ctf = teamdb[str(ctx.guild.id)].find_one(
-                {'name': str(ctx.message.channel.category)})
-            try:  # If there are existing challenges already...
-                challenges = ctf['challenges']
-                challenges.update_one(structured_data)
-            except:
-                ctf_info = {'name': str(ctx.message.channel.category),
-                            'challenges': structured_data
-                            }
-                teamdb[str(ctx.guild.id)].update_one(
-                    {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
+        if url and user and passw:
+            try:
+                ctfd_challs = getChallenges(url, user, passw)
+                structured_data = {}
+                for category, challenges in ctfd_challs.items():
+                    category_dict = {}
+                    for challenge_name, status in challenges:
+                        category_dict[challenge_name] = {
+                            "status": status,
+                            "members": []
+                        }
+                    structured_data[category] = category_dict
+                ctf = teamdb[str(ctx.guild.id)].find_one(
+                    {'name': str(ctx.message.channel.category)})
+                try:  # If there are existing challenges already...
+                    challenges = ctf['challenges']
+                    challenges.update_one(structured_data)
+                except:
+                    ctf_info = {'name': str(ctx.message.channel.category),
+                                'challenges': structured_data
+                                }
+                    teamdb[str(ctx.guild.id)].update_one(
+                        {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
+                role = discord.utils.get(
+                    ctx.guild.roles, name=str(ctx.message.channel.category))
+                channel_names = [
+                    x.name for x in ctx.message.channel.category.channels]
+                new_channels, new_challenges = 0, 0
+                for channel_name, challenges in ctfd_challs.items():
+                    # Create a category for each channel_name
+                    if channel_name not in channel_names:
+                        channel = await ctx.guild.create_text_channel(channel_name, category=ctx.message.channel.category)
+                        await channel.set_permissions(ctx.guild.default_role, read_messages=False)
+                        # Allow access for specified role
+                        await channel.set_permissions(role, read_messages=True)
+                    else:
+                        channel = discord.utils.get(
+                            ctx.guild.channels, name=channel_name)
+                    threads = [x.name for x in channel.threads]
+                    print(threads)
+                    for challenge_name in challenges:
+                        # Create a thread for the challenge
+                        if challenge_name[0] not in threads:
+                            msg = await channel.send(f"`{challenge_name[0]}` Thread:")
+                            await msg.create_thread(name=challenge_name[0])
+                            await ctx.send(f"Added {new_channels} {'Channels' if new_channels > 1 else 'Channel'} and {new_challenges} {'threads' if new_challenges > 1 else 'thread'}.")
                 await ctx.message.add_reaction("✅")
-        except InvalidProvider as ipm:
-            await ctx.send(ipm)
-        except InvalidCredentials as icm:
-            await ctx.send(icm)
-        except NonceNotFound as nnfm:
-            await ctx.send(nnfm)
-        except requests.exceptions.MissingSchema:
-            await ctx.send("Supply a valid url in the form: `http(s)://ctfd.url`")
-        except:
-            traceback.print_exc()
+            except InvalidProvider as ipm:
+                await ctx.send(ipm)
+            except InvalidCredentials as icm:
+                await ctx.send(icm)
+            except NonceNotFound as nnfm:
+                await ctx.send(nnfm)
+            except requests.exceptions.MissingSchema:
+                await ctx.send("Supply a valid url in the form: `http(s)://ctfd.url`")
+            except:
+                traceback.print_exc()
+        else:
+            role = discord.utils.get(
+                ctx.guild.roles, name=str(ctx.message.channel.category))
+            with open("./constants.json", "r") as json_file:
+                data = json.load(json_file)
+                categories = data["categories"]
+            for c in categories:
+                channel = await ctx.guild.create_text_channel(name=c, category=ctx.message.channel.category)
+                # Override default permissions
+                await channel.set_permissions(ctx.guild.default_role, read_messages=False)
+                # Allow access for specified role
+                await channel.set_permissions(role, read_messages=True)
 
     @commands.bot_has_permissions(manage_messages=True)
     @commands.has_permissions(manage_messages=True)
     @ctf.command(aliases=['login'])
-    @in_ctf_channel()
+    @in_ctf_category()
     async def setcreds(self, ctx, username, password):
         # Creates a pinned message with the credntials supplied by the user
         pinned = await ctx.message.channel.pins()
@@ -378,7 +432,7 @@ class CTF(commands.Cog):
 
     @commands.bot_has_permissions(manage_messages=True)
     @ctf.command(aliases=['getcreds'])
-    @in_ctf_channel()
+    @in_ctf_category()
     async def creds(self, ctx):
         # Send a message with the credntials
         pinned = await ctx.message.channel.pins()
@@ -419,7 +473,7 @@ class CTF(commands.Cog):
         return challenge_pages
 
     @challenge.command(aliases=['ls', 'l'])
-    @in_ctf_channel()
+    @in_ctf_category()
     async def list(self, ctx):
         # list the challenges in the current ctf.
         ctf_challenge_list = []
