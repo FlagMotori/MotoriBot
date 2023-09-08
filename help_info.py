@@ -11,6 +11,9 @@ return specific times for the time until a ctf begins, or until a currently runn
 
 `>ctftime top [year] [country]`
 display the CTFtime leaderboard rankings for a specified year and country.
+
+`>ctftime team [team name] [year]`
+Display the top 10 events this year for a team, sorted by rating points.
 '''
 
 ctf_help = '''
