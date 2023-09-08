@@ -158,6 +158,7 @@ class CTF(commands.Cog):
     @in_ctf_category()
     async def delete(self, ctx):
         # Delete role from server, delete entry from db
+        cat_name = str(ctx.message.channel.category)
         try:
             role = discord.utils.get(
                 ctx.guild.roles, name=str(ctx.message.channel.category))
@@ -181,8 +182,7 @@ class CTF(commands.Cog):
                 await category.delete()
 
                 # Remove the category from the database
-                teamdb[str(ctx.guild.id)].delete_one(
-                    {'name': str(ctx.message.channel.category)})
+                teamdb[str(ctx.guild.id)].delete_one({'name': cat_name})
 
                 await ctx.send(f"`{str(ctx.message.channel.category)}` and its channels deleted.")
             else:
@@ -237,9 +237,8 @@ class CTF(commands.Cog):
         await msg.create_thread(name=chall_name)
 
     @staticmethod
-    def updateChallenge(ctx, status):
+    def updateChallenge(ctx, chall_name, status):
         # Update the db with a new challenge and its status
-        chall_name = str(ctx.message.channel)
         server = teamdb[str(ctx.guild.id)]
         ctf = server.find_one({'name': str(ctx.message.channel.category)})
         challenges = ctf['challenges'][str(ctx.message.channel.parent)]
@@ -260,21 +259,23 @@ class CTF(commands.Cog):
     @in_ctf_category()
     async def solved(self, ctx):
         if isinstance(ctx.message.channel, discord.Thread):
-            working = CTF.updateChallenge(ctx, 'Solved')
+            name = str(ctx.message.channel.name).replace("Working-", "")
+            name = name.replace("Solved-", "")
+            working = CTF.updateChallenge(ctx, name, 'Solved')
             await ctx.send(f":triangular_flag_on_post: `{ctx.message.channel.name}` has been solved by `{', '.join(working)}`")
-            if "Solved-" not in ctx.message.channel.name or "Working-" not in ctx.message.channel.name:
-                await ctx.message.channel.edit(name="Solved-"+ctx.message.channel.name)
+            await ctx.message.channel.edit(name="Solved-"+name)
         else:
             await ctx.send("send your request in thread.")
 
     @challenge.command(aliases=['w'])
     @in_ctf_category()
-    async def working(self, ctx, name):
+    async def working(self, ctx):
         if isinstance(ctx.message.channel, discord.Thread):
-            working = CTF.updateChallenge(ctx, 'Working')
-            await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{name}`!")
-            if "Solved-" not in ctx.message.channel.name or "Working-" not in ctx.message.channel.name:
-                await ctx.message.channel.edit(name="Working-"+ctx.message.channel.name)
+            name = str(ctx.message.channel.name).replace("Working-", "")
+            name = name.replace("Solved-", "")
+            working = CTF.updateChallenge(ctx, name, 'Working')
+            await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{ctx.message.channel.name}`!")
+            await ctx.message.channel.edit(name="Working-"+name)
         else:
             await ctx.send("send your request in thread.")
 
@@ -304,7 +305,6 @@ class CTF(commands.Cog):
         challenges = ctf['challenges']
         player_stats = {}
         for _, category in challenges.items():
-            print(category)
             for _, chal in category.items():
                 for player in chal['members']:
                     if player not in player_stats:
@@ -313,8 +313,9 @@ class CTF(commands.Cog):
                         player_stats[player][0] += 1
                     elif chal['status'] == 'Solved':
                         player_stats[player][1] += 1
-        
-        for player, data in player_stats.items():
+        sorted_player_stats = sorted(
+            player_stats.items(), key=lambda x: x[1][1], reverse=True)
+        for player, data in sorted_player_stats:
             myTable.add_row([player, data[0], data[1]])
 
         await ctx.send(f"```{myTable}```")
@@ -454,18 +455,39 @@ class CTF(commands.Cog):
     @in_ctf_category()
     async def list(self, ctx):
         # list the challenges in the current ctf.
-        ctf_challenge_list = []
-        server = teamdb[str(ctx.guild.id)]
-        ctf = server.find_one({'name': str(ctx.message.channel.category)})
         try:
             ctf_challenge_list = []
-            for k, v in ctf['challenges'].items():
-                challenge = f"[{k}]: {v}\n"
-                ctf_challenge_list.append(challenge)
+            server = teamdb[str(ctx.guild.id)]
+            ctf = server.find_one({'name': str(ctx.message.channel.category)})
+            output = {}
+            for cat, d in ctf['challenges'].items():
+                output[cat] = []
+                for chall, _ in d.items():
+                    output[cat].append((chall+":"+_['status']))
 
-            for page in CTF.gen_page(ctf_challenge_list):
-                await ctx.send(f"```ini\n{page}```")
-                # ```ini``` makes things in '[]' blue which looks nice :)
+            # Convert the data to a formatted JSON string
+            json_str = json.dumps(output, indent=2, ensure_ascii=False)
+
+            # Define a maximum character limit for each chunk
+            max_chunk_chars = 1950
+
+            # Split the JSON string into chunks without splitting words
+            chunks = []
+            current_chunk = "```json\n"
+            for line in json_str.splitlines():
+                if len(current_chunk) + len(line) <= max_chunk_chars:
+                    current_chunk += line + "\n"  # Add 6 extra characters for "```json```"
+                else:
+                    chunks.append(current_chunk)
+                    current_chunk = "```json\n" + line + "\n"
+
+            # Add the last chunk if it's not empty
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            # Send each chunk as a separate message
+            for chunk in chunks:
+                await ctx.send(chunk + "```")
         except KeyError:  # If nothing has been added to the challenges list
             await ctx.send("Add some challenges with `>ctf challenge add \"challenge name\"`")
         except:
