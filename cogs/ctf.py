@@ -125,9 +125,7 @@ class CTF(commands.Cog):
     @commands.bot_has_permissions(manage_channels=True, manage_roles=True)
     @commands.has_role('Organizer')
     @ctf.command(aliases=["new"])
-    async def create(self, ctx, name):
-        ctf_name = strip_string(name, set(
-            string.ascii_letters + string.digits + ' ' + '-')).replace(' ', '-').lower()
+    async def create(self, ctx, ctf_name):
         category = discord.utils.get(ctx.guild.categories, name=ctf_name)
         if category is None:  # Checks if category exists, if it doesn't it will create it.
             await ctx.guild.create_category(name=ctf_name)
@@ -149,7 +147,7 @@ class CTF(commands.Cog):
         # Allow access for specified role
         await channel.set_permissions(role, read_messages=True)
         server = teamdb[str(ctx.guild.id)]
-        ctf_info = {'name': ctf_name}
+        ctf_info = {'name': ctf_name, 'challenges': {}}
         server.update_one({'name': ctf_name}, {"$set": ctf_info}, upsert=True)
         # Give a visual confirmation of completion.
         await ctx.message.add_reaction("✅")
@@ -220,81 +218,65 @@ class CTF(commands.Cog):
 
     @challenge.command(aliases=["a"])
     @in_ctf_category()
-    async def add(self, ctx, name):
-        # Update the db with a new challenge and its status
-        whitelist = set(string.ascii_letters+string.digits+' ' +
-                        '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
-        chall_name = strip_string(str(name), whitelist)
+    async def add(self, ctx, chall_name):
         server = teamdb[str(ctx.guild.id)]
         ctf = server.find_one({'name': str(ctx.message.channel.category)})
-        try:  # If there are existing challenges already...
-            challenges = ctf['challenges']
-            if challenges.get(chall_name):
-                await ctx.send("A challenge with that name already exists in this channel.")
-                return
-            challenges[chall_name] = {
-                'status': 'Unsolved', 'working': []}
-        except:
-            challenges = {chall_name: {
-                'status': 'Unsolved', 'working': []}}
+        challenges = ctf['challenges']
+        channel = str(ctx.message.channel)
+        if challenges.get(channel):
+            challenges[channel].update(
+                {chall_name: {'status': 'Unsolved', 'members': []}})
+        else:
+            challenges[channel] = {chall_name: {
+                'status': 'Unsolved', 'members': []}}
         ctf_info = {'name': str(ctx.message.channel.category),
                     'challenges': challenges}
         server.update_one({'name': str(ctx.message.channel.category)},
                           {"$set": ctf_info}, upsert=True)
-        msg = await ctx.send(f"`{name}` has been added to the challenge list for `{str(ctx.message.channel)}, adding thread...`")
+        msg = await ctx.send(f"`{chall_name}` has been added to the challenge list for `{channel}, adding thread...`")
         await msg.create_thread(name=chall_name)
 
     @staticmethod
-    def updateChallenge(ctx, name, status):
+    def updateChallenge(ctx, status):
         # Update the db with a new challenge and its status
-        whitelist = set(string.ascii_letters+string.digits+' ' +
-                        '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
-        chall_name = strip_string(str(name), whitelist)
+        chall_name = str(ctx.message.channel)
         server = teamdb[str(ctx.guild.id)]
         ctf = server.find_one({'name': str(ctx.message.channel.category)})
-        try:  # If there are existing challenges already...
-            challenges = ctf['challenges']
-            # If challenge already exist...
-            if (chall := challenges.get(chall_name)):
-                working = chall['working']
-                if ctx.message.author.name not in working:
-                    working.append(ctx.message.author.name)
-                challenges[chall_name] = {
-                    'status': status, 'working': working}
-            else:
-                challenges[chall_name] = {
-                    'status': status, 'working': [ctx.message.author.name]}
-        except:
-            challenges = {chall_name: {
-                'status': status, 'working': [ctx.message.author.name]}}
-        finally:
-            working = challenges[chall_name]['working']
+        challenges = ctf['challenges'][str(ctx.message.channel.parent)]
+        # If challenge already exist...
+        members = challenges[chall_name]['members']
+        if ctx.message.author.name not in members:
+            members.append(ctx.message.author.name)
+        challenges[chall_name] = {
+            'status': status, 'members': members}
         ctf_info = {'name': str(ctx.message.channel.category),
-                    'challenges': challenges
+                    'challenges': ctf['challenges']
                     }
         server.update_one({'name': str(ctx.message.channel.category)},
                           {"$set": ctf_info}, upsert=True)
-        return working
+        return members
 
     @challenge.command(aliases=['s', 'solve'])
     @in_ctf_category()
-    async def solved(self, ctx, name):
-        role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel.category))
-        user = ctx.message.author
-        await user.add_roles(role)
-        working = CTF.updateChallenge(ctx, name, 'Solved')
-        await ctx.send(f":triangular_flag_on_post: `{name}` has been solved by `{', '.join(working)}`")
+    async def solved(self, ctx):
+        if isinstance(ctx.message.channel, discord.Thread):
+            working = CTF.updateChallenge(ctx, 'Solved')
+            await ctx.send(f":triangular_flag_on_post: `{ctx.message.channel.name}` has been solved by `{', '.join(working)}`")
+            if "Solved-" not in ctx.message.channel.name or "Working-" not in ctx.message.channel.name:
+                await ctx.message.channel.edit(name="Solved-"+ctx.message.channel.name)
+        else:
+            await ctx.send("send your request in thread.")
 
     @challenge.command(aliases=['w'])
     @in_ctf_category()
     async def working(self, ctx, name):
-        role = discord.utils.get(
-            ctx.guild.roles, name=str(ctx.message.channel.category))
-        user = ctx.message.author
-        await user.add_roles(role)
-        working = CTF.updateChallenge(ctx, name, 'Working')
-        await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{name}`!")
+        if isinstance(ctx.message.channel, discord.Thread):
+            working = CTF.updateChallenge(ctx, 'Working')
+            await ctx.send(f"`{', '.join(working)}` {'is' if len(working) == 1 else 'are'} working on `{name}`!")
+            if "Solved-" not in ctx.message.channel.name or "Working-" not in ctx.message.channel.name:
+                await ctx.message.channel.edit(name="Working-"+ctx.message.channel.name)
+        else:
+            await ctx.send("send your request in thread.")
 
     @challenge.command(aliases=['r', 'delete', 'd'])
     @in_ctf_category()
@@ -304,41 +286,36 @@ class CTF(commands.Cog):
         ctf = teamdb[str(ctx.guild.id)].find_one(
             {'name': str(ctx.message.channel.category)})
         challenges = ctf['challenges']
-        whitelist = set(string.ascii_letters+string.digits+' ' +
-                        '-'+'!'+'#'+'_'+'['+']'+'('+')'+'?'+'@'+'+'+'<'+'>')
-        name = strip_string(name, whitelist)
-        challenges.pop(name, None)
+        challenges[ctx.message.channel.name].pop(name, None)
         ctf_info = {'name': str(ctx.message.channel.category),
                     'challenges': challenges
                     }
         teamdb[str(ctx.guild.id)].update_one(
-            {'name': str(ctx.message.channel.category)}, {"$set": ctf_info}, upsert=True)
+            {'name': str(ctx.message.channel.category)}, {"$set": ctf_info})
         await ctx.send(f"Removed `{name}`")
 
     @challenge.command(aliases=['stat'])
     @in_ctf_category()
     @commands.has_role('Organizer')
-    async def stats(self, ctx, name):
-        # Typos can happen (remove a ctf challenge from the list)
+    async def stats(self, ctx):
         myTable = PrettyTable(['player', 'working', 'solved'])
-
         ctf = teamdb[str(ctx.guild.id)].find_one(
             {'name': str(ctx.message.channel.category)})
         challenges = ctf['challenges']
-
         player_stats = {}
-        for _, chal in challenges.items():
-            for player in chal['working']:
-                if player not in player_stats:
-                    player_stats[player] = [0, 0]
-                if chal['status'] == 'Working':
-                    player_stats[player][0] += 1
-                elif chal['status'] == 'Solved':
-                    player_stats[player][1] += 1
-
-        for player in player_stats:
-            myTable.add_row([player, player_stats[player]
-                            [0], player_stats[player][1]])
+        for _, category in challenges.items():
+            print(category)
+            for _, chal in category.items():
+                for player in chal['members']:
+                    if player not in player_stats:
+                        player_stats[player] = [0, 0]
+                    if chal['status'] == 'Working':
+                        player_stats[player][0] += 1
+                    elif chal['status'] == 'Solved':
+                        player_stats[player][1] += 1
+        
+        for player, data in player_stats.items():
+            myTable.add_row([player, data[0], data[1]])
 
         await ctx.send(f"```{myTable}```")
 
@@ -377,6 +354,7 @@ class CTF(commands.Cog):
                 for channel_name, challenges in ctfd_challs.items():
                     # Create a category for each channel_name
                     if channel_name not in channel_names:
+                        new_channels += 1
                         channel = await ctx.guild.create_text_channel(channel_name, category=ctx.message.channel.category)
                         await channel.set_permissions(ctx.guild.default_role, read_messages=False)
                         # Allow access for specified role
@@ -385,13 +363,13 @@ class CTF(commands.Cog):
                         channel = discord.utils.get(
                             ctx.guild.channels, name=channel_name)
                     threads = [x.name for x in channel.threads]
-                    print(threads)
                     for challenge_name in challenges:
                         # Create a thread for the challenge
                         if challenge_name[0] not in threads:
+                            new_challenges += 1
                             msg = await channel.send(f"`{challenge_name[0]}` Thread:")
                             await msg.create_thread(name=challenge_name[0])
-                            await ctx.send(f"Added {new_channels} {'Channels' if new_channels > 1 else 'Channel'} and {new_challenges} {'threads' if new_challenges > 1 else 'thread'}.")
+                await ctx.send(f"Added {new_channels} {'Channels' if new_channels > 1 else 'Channel'} and {new_challenges} {'threads' if new_challenges > 1 else 'thread'}.")
                 await ctx.message.add_reaction("✅")
             except InvalidProvider as ipm:
                 await ctx.send(ipm)
